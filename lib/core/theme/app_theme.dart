@@ -1,66 +1,75 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-/// Visual direction will follow boss designs when available.
-/// Until then: warm night-out palette, not purple-default AI look.
-class AppTheme {
-  static const Color ink = Color(0xFF1A1512);
+/// NYTO design tokens — matched to Figma Make references.
+class NytoColors {
+  static const Color bg = Color(0xFF1A1512);
   static const Color cream = Color(0xFFF7F1E8);
-  static const Color ember = Color(0xFFC45C26);
+  static const Color creamMuted = Color(0xFF9A8F82);
+  static const Color creamFaint = Color(0x269A8F82); // ~15%
+  static const Color orange = Color(0xFFC45C26);
+  static const Color orangeDisabled = Color(0x59C45C26); // ~35%
   static const Color moss = Color(0xFF2F4F3E);
+  static const Color surface = Color(0xFF221E1A);
+}
 
-  static ThemeData get light {
-    return ThemeData(
+class AppTheme {
+  static ThemeData get dark {
+    final base = ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
-      scaffoldBackgroundColor: cream,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: ember,
-        primary: ember,
-        secondary: moss,
-        surface: cream,
-        brightness: Brightness.light,
+      brightness: Brightness.dark,
+      scaffoldBackgroundColor: NytoColors.bg,
+      colorScheme: const ColorScheme.dark(
+        primary: NytoColors.orange,
+        secondary: NytoColors.moss,
+        surface: NytoColors.bg,
+        onPrimary: NytoColors.cream,
+        onSurface: NytoColors.cream,
       ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: cream,
-        foregroundColor: ink,
-        elevation: 0,
-        centerTitle: false,
-      ),
-      textTheme: const TextTheme(
-        displayLarge: TextStyle(
-          fontFamily: 'Georgia',
-          fontSize: 40,
-          fontWeight: FontWeight.w700,
-          color: ink,
-          height: 1.1,
+    );
+
+    return base.copyWith(
+      textTheme: TextTheme(
+        displayLarge: GoogleFonts.fraunces(
+          fontSize: 34,
+          fontWeight: FontWeight.w400,
+          color: NytoColors.cream,
+          height: 1.15,
+          letterSpacing: -0.2,
         ),
-        headlineMedium: TextStyle(
-          fontFamily: 'Georgia',
-          fontSize: 24,
+        headlineMedium: GoogleFonts.fraunces(
+          fontSize: 26,
+          fontWeight: FontWeight.w300,
+          color: NytoColors.cream,
+          height: 1.25,
+        ),
+        titleMedium: GoogleFonts.dmSans(
+          fontSize: 15,
           fontWeight: FontWeight.w600,
-          color: ink,
+          color: NytoColors.cream,
         ),
-        bodyLarge: TextStyle(
+        bodyLarge: GoogleFonts.dmSans(
           fontSize: 16,
-          color: ink,
+          fontWeight: FontWeight.w400,
+          color: NytoColors.cream,
           height: 1.4,
         ),
-        bodyMedium: TextStyle(
+        bodyMedium: GoogleFonts.dmSans(
           fontSize: 14,
-          color: Color(0xFF5C534C),
-          height: 1.4,
+          fontWeight: FontWeight.w400,
+          color: NytoColors.creamMuted,
+          height: 1.55,
         ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: ember,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(52),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+        labelSmall: GoogleFonts.dmSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          letterSpacing: 1.1,
+          color: NytoColors.creamMuted,
         ),
       ),
     );
   }
+
+  /// @Deprecated Use [dark] — kept name for existing imports during migration.
+  static ThemeData get light => dark;
 }

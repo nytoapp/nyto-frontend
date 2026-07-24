@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
-import 'package:nyto_app/features/home/home_screen.dart';
+import 'package:nyto_app/features/auth/sign_up_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -13,10 +14,16 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 1200), () {
+    Future<void>.delayed(const Duration(milliseconds: 1400), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+        PageRouteBuilder<void>(
+          pageBuilder: (_, __, ___) => const SignUpScreen(),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 450),
+        ),
       );
     });
   }
@@ -24,30 +31,30 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1A1512),
-              Color(0xFF2F4F3E),
-              Color(0xFFC45C26),
-            ],
-          ),
-        ),
-        child: const Center(
-          child: Text(
-            'NYTO',
-            style: TextStyle(
-              fontFamily: 'Georgia',
-              fontSize: 56,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.cream,
-              letterSpacing: 4,
+      backgroundColor: NytoColors.bg,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'NYTO',
+              style: GoogleFonts.fraunces(
+                fontSize: 52,
+                fontWeight: FontWeight.w600,
+                color: NytoColors.orange,
+                letterSpacing: 6,
+              ),
             ),
-          ),
+            const SizedBox(height: 14),
+            Text(
+              'Book a seat. Meet five strangers.',
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: NytoColors.creamMuted,
+              ),
+            ),
+          ],
         ),
       ),
     );

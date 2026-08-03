@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// NYTO design tokens — matched to Figma Make references.
+/// NYTO design tokens — matched to Figma Make references + brand mark.
 class NytoColors {
   static const Color bg = Color(0xFF1A1512);
   static const Color cream = Color(0xFFF7F1E8);
@@ -11,6 +11,15 @@ class NytoColors {
   static const Color orangeDisabled = Color(0x59C45C26); // ~35%
   static const Color moss = Color(0xFF2F4F3E);
   static const Color surface = Color(0xFF221E1A);
+
+  /// Brand splash / welcome (logo purple → pink).
+  static const Color pureBlack = Color(0xFF000000);
+  static const Color brandInk = Color(0xFF0A0610);
+  static const Color brandViolet = Color(0xFF7A3CFF);
+  static const Color brandMagenta = Color(0xFFE23A9A);
+  static const Color brandPink = Color(0xFFFF5CB5);
+  static const Color glass = Color(0x33FFFFFF);
+  static const Color glassStrong = Color(0x55FFFFFF);
 }
 
 class AppTheme {

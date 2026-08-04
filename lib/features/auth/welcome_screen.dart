@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/sign_in_screen.dart';
@@ -18,6 +19,7 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   static const _prefsKey = 'nyto_language_code';
+  static const _videoAsset = 'assets/video/welcome_loop.mp4';
   static const _stills = <String>[
     'assets/video/welcome_01.jpg',
     'assets/video/welcome_02.jpg',
@@ -55,26 +57,38 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     setState(() => _languageCode = code);
   }
 
-  Future<void> _bootMedia() async {
-    // Prefer a real loop when the asset exists; otherwise cinematic stills.
+  /// Dart-side asset probe — never touch ExoPlayer unless the mp4 is bundled.
+  Future<bool> _hasBundledAsset(String key) async {
     try {
-      final controller =
-          VideoPlayerController.asset('assets/video/welcome_loop.mp4');
-      await controller.initialize();
-      await controller.setLooping(true);
-      await controller.setVolume(0);
-      await controller.play();
-      if (!mounted) {
-        await controller.dispose();
-        return;
-      }
-      setState(() {
-        _video = controller;
-        _useVideo = true;
-      });
-      return;
+      await rootBundle.load(key);
+      return true;
     } catch (_) {
-      // Asset not bundled yet — fall through to stills.
+      return false;
+    }
+  }
+
+  Future<void> _bootMedia() async {
+    // Prefer a real loop only when the asset is in pubspec + on disk.
+    // Missing mp4 must not call VideoPlayerController (ExoPlayer FileNotFound spam).
+    if (await _hasBundledAsset(_videoAsset)) {
+      try {
+        final controller = VideoPlayerController.asset(_videoAsset);
+        await controller.initialize();
+        await controller.setLooping(true);
+        await controller.setVolume(0);
+        await controller.play();
+        if (!mounted) {
+          await controller.dispose();
+          return;
+        }
+        setState(() {
+          _video = controller;
+          _useVideo = true;
+        });
+        return;
+      } catch (_) {
+        // Bundled but failed to play — fall through to stills.
+      }
     }
     _startStillLoop();
   }

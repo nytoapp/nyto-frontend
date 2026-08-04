@@ -49,6 +49,16 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+
+# Launcher label: AndroidManifest / iOS Info.plist (Nyto).
+# Android icons: dart run tool/make_ring_icon.dart  (official NYTO_AppIcon).
+flutter_launcher_icons:
+  android: false
+  ios: true
+  image_path: assets/brand/nyto_app_icon_1024.png
+  remove_alpha_ios: true
+  background_color_ios: "#000000"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -63,6 +73,7 @@ flutter:
 
   assets:
     - assets/brand/nyto_logo_primary.png
+    - assets/brand/nyto_logo_wordmark.png
     - assets/video/welcome_01.jpg
     - assets/video/welcome_02.jpg
     - assets/video/welcome_03.jpg

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
 
-/// Screen 1 — black brand beat with Primary NYTO logo, then welcome.
+/// Warm re-open splash only (cold start uses native overlay in MainActivity).
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -10,46 +10,43 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<double> _lift;
+class _SplashScreenState extends State<SplashScreen> {
+  static const _wordmark = 'assets/brand/nyto_logo_wordmark.png';
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    );
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
-    _lift = Tween<double>(begin: 14, end: 0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
-    );
-
-    Future<void>.delayed(const Duration(milliseconds: 80), () {
-      if (mounted) _controller.forward();
-    });
-
-    Future<void>.delayed(const Duration(milliseconds: 2200), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder<void>(
-          pageBuilder: (_, __, ___) => const WelcomeScreen(),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-          transitionDuration: const Duration(milliseconds: 650),
-        ),
-      );
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runSplash());
   }
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  Future<void> _runSplash() async {
+    if (!mounted || _navigated) return;
+
+    // ignore: unawaited_futures
+    precacheImage(const AssetImage('assets/video/welcome_01.jpg'), context);
+
+    await Future<void>.delayed(const Duration(milliseconds: 1000));
+    if (!mounted || _navigated) return;
+    _goWelcome();
+  }
+
+  void _goWelcome() {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder<void>(
+        pageBuilder: (_, __, ___) => const WelcomeScreen(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final fadeIn = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeInOutCubic,
+          );
+          return FadeTransition(opacity: fadeIn, child: child);
+        },
+        transitionDuration: const Duration(milliseconds: 480),
+      ),
+    );
   }
 
   @override
@@ -57,24 +54,14 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: NytoColors.pureBlack,
       body: Center(
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Opacity(
-              opacity: _fade.value,
-              child: Transform.translate(
-                offset: Offset(0, _lift.value),
-                child: child,
-              ),
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 48),
-            child: Image.asset(
-              'assets/brand/nyto_logo_primary.png',
-              fit: BoxFit.contain,
-              semanticLabel: 'NYTO — What\'s alive tonight',
-            ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 40),
+          child: Image.asset(
+            _wordmark,
+            fit: BoxFit.contain,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.high,
+            semanticLabel: 'NYTO — What\'s alive tonight',
           ),
         ),
       ),

@@ -6,10 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/sign_in_screen.dart';
 import 'package:nyto_app/features/auth/sign_up_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
-/// Screen 2 — cinematic welcome (video or stills), language, NYTO CTAs.
+/// Screen 2 — cinematic welcome: full-bleed media, invite copy, CTA stack.
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -17,8 +16,8 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen> {
-  static const _prefsKey = 'nyto_language_code';
+class _WelcomeScreenState extends State<WelcomeScreen>
+    with SingleTickerProviderStateMixin {
   static const _videoAsset = 'assets/video/welcome_loop.mp4';
   static const _stills = <String>[
     'assets/video/welcome_01.jpg',
@@ -28,36 +27,43 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     'assets/video/welcome_05.jpg',
   ];
 
+  static const _headlines = <String>[
+    "You've been invited\nto dinner.",
+    'A table is waiting\nfor you.',
+    'Tonight, sit with people\nworth meeting.',
+  ];
+
   VideoPlayerController? _video;
   bool _useVideo = false;
+  bool _uiReady = false;
   int _stillIndex = 0;
+  int _headlineIndex = 0;
   Timer? _stillTimer;
-  String _languageCode = 'en';
-
-  static const _languages = <_NytoLanguage>[
-    _NytoLanguage('en', 'English', '🇺🇸 🇬🇧'),
-    _NytoLanguage('hi', 'हिन्दी', '🇮🇳'),
-    _NytoLanguage('te', 'తెలుగు', '🇮🇳'),
-    _NytoLanguage('ta', 'தமிழ்', '🇮🇳'),
-    _NytoLanguage('kn', 'ಕನ್ನಡ', '🇮🇳'),
-    _NytoLanguage('mr', 'मराठी', '🇮🇳'),
-  ];
+  Timer? _headlineTimer;
+  late final AnimationController _enter;
 
   @override
   void initState() {
     super.initState();
-    _loadLanguage();
+    _enter = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
+    _setSystemUi();
     _bootMedia();
   }
 
-  Future<void> _loadLanguage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final code = prefs.getString(_prefsKey) ?? 'en';
-    if (!mounted) return;
-    setState(() => _languageCode = code);
+  void _setSystemUi() {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
   }
 
-  /// Dart-side asset probe — never touch ExoPlayer unless the mp4 is bundled.
   Future<bool> _hasBundledAsset(String key) async {
     try {
       await rootBundle.load(key);
@@ -68,186 +74,60 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   Future<void> _bootMedia() async {
-    // Prefer a real loop only when the asset is in pubspec + on disk.
-    // Missing mp4 must not call VideoPlayerController (ExoPlayer FileNotFound spam).
-    if (await _hasBundledAsset(_videoAsset)) {
-      try {
-        final controller = VideoPlayerController.asset(_videoAsset);
-        await controller.initialize();
-        await controller.setLooping(true);
-        await controller.setVolume(0);
-        await controller.play();
-        if (!mounted) {
-          await controller.dispose();
-          return;
-        }
-        setState(() {
-          _video = controller;
-          _useVideo = true;
-        });
-        return;
-      } catch (_) {
-        // Bundled but failed to play — fall through to stills.
-      }
-    }
+    // Show still + UI immediately — never block first paint on video decode.
     _startStillLoop();
+    _revealUi();
+    // ignore: unawaited_futures
+    _tryStartVideo();
+  }
+
+  Future<void> _tryStartVideo() async {
+    if (!await _hasBundledAsset(_videoAsset)) return;
+    try {
+      final controller = VideoPlayerController.asset(_videoAsset);
+      await controller.initialize();
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      await controller.play();
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      _stillTimer?.cancel();
+      setState(() {
+        _video = controller;
+        _useVideo = true;
+      });
+    } catch (_) {
+      // Stills already running — fine.
+    }
+  }
+
+  void _revealUi() {
+    if (!mounted) return;
+    setState(() => _uiReady = true);
+    _enter.forward(from: 0);
+    _startHeadlineLoop();
   }
 
   void _startStillLoop() {
     _stillTimer?.cancel();
-    _stillTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+    _stillTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       if (!mounted || _useVideo) return;
       setState(() => _stillIndex = (_stillIndex + 1) % _stills.length);
     });
   }
 
-  Future<void> _saveLanguage(String code) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, code);
-    if (!mounted) return;
-    setState(() => _languageCode = code);
-  }
-
-  void _openLanguageSheet() {
-    var draft = _languageCode;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModal) {
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.82,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF4F0EA),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Language',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close_rounded),
-                          color: Colors.black54,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                      itemCount: _languages.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final lang = _languages[index];
-                        final selected = draft == lang.code;
-                        return Material(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(18),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: () => setModal(() => draft = lang.code),
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 16,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: selected
-                                      ? Colors.black
-                                      : Colors.black.withValues(alpha: 0.08),
-                                  width: selected ? 2 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${lang.label}  ${lang.flags}',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.black87,
-                                      ),
-                                    ),
-                                  ),
-                                  Icon(
-                                    selected
-                                        ? Icons.radio_button_checked_rounded
-                                        : Icons.radio_button_off_rounded,
-                                    color: selected
-                                        ? Colors.black
-                                        : Colors.black38,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: SizedBox(
-                        width: double.infinity,
-                        height: 54,
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            backgroundColor: Colors.black,
-                            foregroundColor: Colors.white,
-                            shape: const StadiumBorder(),
-                          ),
-                          onPressed: () async {
-                            await _saveLanguage(draft);
-                            if (context.mounted) Navigator.pop(context);
-                          },
-                          child: Text(
-                            'Confirm',
-                            style: GoogleFonts.dmSans(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  void _startHeadlineLoop() {
+    _headlineTimer?.cancel();
+    _headlineTimer = Timer.periodic(const Duration(milliseconds: 4200), (_) {
+      if (!mounted) return;
+      setState(() => _headlineIndex = (_headlineIndex + 1) % _headlines.length);
+    });
   }
 
   void _goSignUp() {
@@ -265,128 +145,180 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void dispose() {
     _stillTimer?.cancel();
+    _headlineTimer?.cancel();
     _video?.dispose();
+    _enter.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NytoColors.brandInk,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          _MediaBackdrop(
-            useVideo: _useVideo,
-            video: _video,
-            stills: _stills,
-            stillIndex: _stillIndex,
-          ),
-          const _BottomScrim(),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: _GlobeButton(onTap: _openLanguageSheet),
-                  ),
-                  const Spacer(),
-                  Text(
-                    "You've been invited to dinner.",
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.fraunces(
-                      fontSize: 34,
-                      fontWeight: FontWeight.w500,
-                      height: 1.15,
-                      color: NytoColors.cream,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black.withValues(alpha: 0.55),
-                          blurRadius: 18,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Verified strangers. A paid seat. Nothing left to figure out.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 14,
-                      height: 1.45,
-                      color: NytoColors.cream.withValues(alpha: 0.82),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  _PrimaryCta(
-                    label: 'Find your table',
-                    onTap: _goSignUp,
-                  ),
-                  const SizedBox(height: 12),
-                  _SecondaryCta(
-                    label: 'Already on NYTO? Sign in',
-                    onTap: _goSignIn,
-                  ),
-                  const SizedBox(height: 18),
-                  Text.rich(
-                    TextSpan(
-                      text: 'By continuing you agree to the ',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        height: 1.45,
-                        color: NytoColors.cream.withValues(alpha: 0.7),
+    final fade = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
+    final lift = Tween<double>(begin: 18, end: 0).animate(fade);
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: NytoColors.brandInk,
+        extendBody: true,
+        extendBodyBehindAppBar: true,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            _MediaBackdrop(
+              useVideo: _useVideo,
+              video: _video,
+              stills: _stills,
+              stillIndex: _stillIndex,
+            ),
+            const _CinematicScrim(),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 10, 24, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Spacer(),
+                    AnimatedBuilder(
+                      animation: _enter,
+                      builder: (context, child) {
+                        return Opacity(
+                          opacity: _uiReady ? fade.value : 0,
+                          child: Transform.translate(
+                            offset: Offset(0, lift.value),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SizedBox(
+                            height: 92,
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 700),
+                              switchInCurve: Curves.easeOutCubic,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) {
+                                final slide = Tween<Offset>(
+                                  begin: const Offset(0, 0.12),
+                                  end: Offset.zero,
+                                ).animate(animation);
+                                return FadeTransition(
+                                  opacity: animation,
+                                  child: SlideTransition(
+                                    position: slide,
+                                    child: child,
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                _headlines[_headlineIndex],
+                                key: ValueKey(_headlineIndex),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.fraunces(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.12,
+                                  letterSpacing: -0.4,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black
+                                          .withValues(alpha: 0.45),
+                                      blurRadius: 24,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          Text(
+                            'Good people. One table.\nZero planning.',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 15,
+                              height: 1.45,
+                              fontWeight: FontWeight.w400,
+                              color: Colors.white.withValues(alpha: 0.86),
+                            ),
+                          ),
+                          const SizedBox(height: 28),
+                          _PrimaryCta(
+                            label: 'Find your table',
+                            onTap: _goSignUp,
+                          ),
+                          const SizedBox(height: 12),
+                          _SecondaryCta(
+                            label: 'Already on NYTO? Sign in',
+                            onTap: _goSignIn,
+                          ),
+                          const SizedBox(height: 18),
+                          Text.rich(
+                            TextSpan(
+                              text: 'By continuing you agree to the ',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11,
+                                height: 1.45,
+                                color: Colors.white.withValues(alpha: 0.62),
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Terms',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 11,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor:
+                                        Colors.white.withValues(alpha: 0.7),
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                  ),
+                                ),
+                                const TextSpan(text: ', '),
+                                TextSpan(
+                                  text: 'Privacy Policy',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 11,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor:
+                                        Colors.white.withValues(alpha: 0.7),
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                  ),
+                                ),
+                                const TextSpan(text: ' & '),
+                                TextSpan(
+                                  text: 'Community Guidelines',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 11,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor:
+                                        Colors.white.withValues(alpha: 0.7),
+                                    color: Colors.white.withValues(alpha: 0.88),
+                                  ),
+                                ),
+                                const TextSpan(text: '.'),
+                              ],
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
-                      children: [
-                        TextSpan(
-                          text: 'Terms',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            decoration: TextDecoration.underline,
-                            color: NytoColors.cream,
-                          ),
-                        ),
-                        const TextSpan(text: ', '),
-                        TextSpan(
-                          text: 'Privacy Policy',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            decoration: TextDecoration.underline,
-                            color: NytoColors.cream,
-                          ),
-                        ),
-                        const TextSpan(text: ' & '),
-                        TextSpan(
-                          text: 'Community Guidelines',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            decoration: TextDecoration.underline,
-                            color: NytoColors.cream,
-                          ),
-                        ),
-                        const TextSpan(text: '.'),
-                      ],
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
-}
-
-class _NytoLanguage {
-  const _NytoLanguage(this.code, this.label, this.flags);
-  final String code;
-  final String label;
-  final String flags;
 }
 
 class _MediaBackdrop extends StatelessWidget {
@@ -405,34 +337,46 @@ class _MediaBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (useVideo && video != null && video!.value.isInitialized) {
-      return FittedBox(
-        fit: BoxFit.cover,
-        clipBehavior: Clip.hardEdge,
-        child: SizedBox(
-          width: video!.value.size.width,
-          height: video!.value.size.height,
-          child: VideoPlayer(video!),
+      return ColoredBox(
+        color: NytoColors.brandInk,
+        child: FittedBox(
+          fit: BoxFit.cover,
+          clipBehavior: Clip.hardEdge,
+          child: SizedBox(
+            width: video!.value.size.width,
+            height: video!.value.size.height,
+            child: VideoPlayer(video!),
+          ),
         ),
       );
     }
 
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 900),
-      switchInCurve: Curves.easeInOut,
-      switchOutCurve: Curves.easeInOut,
-      child: Image.asset(
-        stills[stillIndex],
+      duration: const Duration(milliseconds: 1200),
+      switchInCurve: Curves.easeInOutCubic,
+      switchOutCurve: Curves.easeInOutCubic,
+      child: TweenAnimationBuilder<double>(
         key: ValueKey(stills[stillIndex]),
-        fit: BoxFit.cover,
-        width: double.infinity,
-        height: double.infinity,
+        tween: Tween(begin: 1.0, end: 1.07),
+        duration: const Duration(seconds: 5),
+        curve: Curves.easeInOut,
+        builder: (context, scale, child) {
+          return Transform.scale(scale: scale, child: child);
+        },
+        child: Image.asset(
+          stills[stillIndex],
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          gaplessPlayback: true,
+        ),
       ),
     );
   }
 }
 
-class _BottomScrim extends StatelessWidget {
-  const _BottomScrim();
+class _CinematicScrim extends StatelessWidget {
+  const _CinematicScrim();
 
   @override
   Widget build(BuildContext context) {
@@ -443,36 +387,14 @@ class _BottomScrim extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
+              Colors.black.withValues(alpha: 0.18),
               Colors.transparent,
-              NytoColors.brandInk.withValues(alpha: 0.15),
-              NytoColors.brandInk.withValues(alpha: 0.72),
-              NytoColors.brandInk.withValues(alpha: 0.94),
+              NytoColors.brandInk.withValues(alpha: 0.08),
+              NytoColors.brandInk.withValues(alpha: 0.55),
+              NytoColors.brandInk.withValues(alpha: 0.88),
             ],
-            stops: const [0.35, 0.52, 0.74, 1],
+            stops: const [0.0, 0.32, 0.52, 0.74, 1.0],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _GlobeButton extends StatelessWidget {
-  const _GlobeButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.92),
-      shape: const CircleBorder(),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: const SizedBox(
-          width: 44,
-          height: 44,
-          child: Icon(Icons.public_rounded, color: Colors.black87, size: 22),
         ),
       ),
     );
@@ -503,9 +425,9 @@ class _PrimaryCta extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: NytoColors.brandMagenta.withValues(alpha: 0.35),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
+              color: NytoColors.brandMagenta.withValues(alpha: 0.38),
+              blurRadius: 28,
+              offset: const Offset(0, 12),
             ),
           ],
         ),
@@ -521,7 +443,7 @@ class _PrimaryCta extends StatelessWidget {
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
-                  letterSpacing: 0.2,
+                  letterSpacing: 0.15,
                 ),
               ),
             ),
@@ -540,12 +462,13 @@ class _SecondaryCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Light glass without BackdropFilter — blur janks hard on emulator GPUs.
     return SizedBox(
       height: 56,
       child: Material(
-        color: Colors.white.withValues(alpha: 0.12),
-        shape: const StadiumBorder(
-          side: BorderSide(color: Colors.white54),
+        color: Colors.white.withValues(alpha: 0.16),
+        shape: StadiumBorder(
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.42)),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -556,7 +479,7 @@ class _SecondaryCta extends StatelessWidget {
               style: GoogleFonts.dmSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: NytoColors.cream,
+                color: Colors.white.withValues(alpha: 0.96),
               ),
             ),
           ),

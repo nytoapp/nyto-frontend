@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Temp / bad media (phone screen recordings, icon debug dumps)
+assets/video/*.PHONE_RECORDING.bak.mp4
+assets/video/_clean/
+assets/video/_old_screenshots/
+_icon_check/
+_icon_extract/

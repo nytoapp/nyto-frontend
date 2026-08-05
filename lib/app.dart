@@ -57,7 +57,8 @@ class _NytoAppState extends State<NytoApp> with WidgetsBindingObserver {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       navigatorKey: _navKey,
-      // Cold start: native overlay shows wordmark; Flutter starts on Welcome underneath.
+      // Cold start: native splash shows NYTO instantly, then soft-fades to Welcome.
+      // Warm re-open: lifecycle pushes Flutter SplashScreen (same 2s + soft fade).
       home: const WelcomeScreen(),
     );
   }

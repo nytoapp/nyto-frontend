@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
 
-/// Warm re-open splash only (cold start uses native overlay in MainActivity).
+/// Brand splash: hold NYTO, then soft crossfade into Welcome (~2s total).
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -23,10 +23,14 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _runSplash() async {
     if (!mounted || _navigated) return;
 
+    // Preload Welcome stills during brand hold.
     // ignore: unawaited_futures
     precacheImage(const AssetImage('assets/video/welcome_01.jpg'), context);
+    // ignore: unawaited_futures
+    precacheImage(const AssetImage('assets/video/welcome_02.jpg'), context);
 
-    await Future<void>.delayed(const Duration(milliseconds: 1000));
+    // Hold brand, then soft crossfade ≈ 2s total feel (warm re-open path).
+    await Future<void>.delayed(const Duration(milliseconds: 1400));
     if (!mounted || _navigated) return;
     _goWelcome();
   }
@@ -36,6 +40,8 @@ class _SplashScreenState extends State<SplashScreen> {
     _navigated = true;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
+        // Keep splash painted underneath so NYTO soft-dissolves into Welcome.
+        opaque: false,
         pageBuilder: (_, __, ___) => const WelcomeScreen(),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           final fadeIn = CurvedAnimation(
@@ -44,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen> {
           );
           return FadeTransition(opacity: fadeIn, child: child);
         },
-        transitionDuration: const Duration(milliseconds: 480),
+        transitionDuration: const Duration(milliseconds: 600),
       ),
     );
   }

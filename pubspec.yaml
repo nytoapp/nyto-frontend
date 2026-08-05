@@ -79,8 +79,7 @@ flutter:
     - assets/video/welcome_03.jpg
     - assets/video/welcome_04.jpg
     - assets/video/welcome_05.jpg
-    # Drop welcome_loop.mp4 here when ready — WelcomeScreen will prefer it.
-    # - assets/video/welcome_loop.mp4
+    - assets/video/welcome_loop.mp4
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

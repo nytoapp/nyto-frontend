@@ -7,10 +7,8 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import io.flutter.embedding.android.FlutterActivity
 
 /**
- * Cold start:
- * 1) System splash shows NYTO wordmark immediately (no blank black)
- * 2) Hold at least 1s after UI is ready
- * 3) Soft-fade splash away → Welcome underneath
+ * Cold start: NYTO wordmark on first tap → hold ~2s → soft fade into Welcome.
+ * (No blank black. Flutter SplashScreen is only used on warm re-open.)
  */
 class MainActivity : FlutterActivity() {
     @Volatile
@@ -23,12 +21,11 @@ class MainActivity : FlutterActivity() {
         val splashScreen = installSplashScreen()
         splashScreen.setKeepOnScreenCondition { keepSplash }
 
-        // Soft fade out — without this listener, Android removes splash instantly.
         splashScreen.setOnExitAnimationListener { provider ->
             val splashView = provider.view
             splashView.animate()
                 .alpha(0f)
-                .setDuration(520L)
+                .setDuration(600L)
                 .setInterpolator(AccelerateDecelerateInterpolator())
                 .withEndAction {
                     provider.remove()
@@ -39,14 +36,15 @@ class MainActivity : FlutterActivity() {
         super.onCreate(savedInstanceState)
         splashShownAt = SystemClock.elapsedRealtime()
 
-        // Safety: never stick on splash forever if Flutter UI callback is late.
-        window.decorView.postDelayed({ releaseSplash() }, 2500L)
+        // Safety cap.
+        window.decorView.postDelayed({ releaseSplash() }, 2200L)
     }
 
     override fun onFlutterUiDisplayed() {
         super.onFlutterUiDisplayed()
         val elapsed = SystemClock.elapsedRealtime() - splashShownAt
-        val remaining = (1000L - elapsed).coerceAtLeast(0L)
+        // ~1.4s hold then 600ms soft fade ≈ 2s total.
+        val remaining = (1400L - elapsed).coerceAtLeast(0L)
         window.decorView.postDelayed({ releaseSplash() }, remaining)
     }
 

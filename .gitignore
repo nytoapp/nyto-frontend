@@ -50,3 +50,9 @@ assets/video/_clean/
 assets/video/_old_screenshots/
 _icon_check/
 _icon_extract/
+
+# Local video work folders / leftovers
+assets/video/_probe/
+assets/video/_clean/
+assets/video/_old_screenshots/
+assets/video/*.bak.mp4

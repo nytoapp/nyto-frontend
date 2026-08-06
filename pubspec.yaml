@@ -74,11 +74,6 @@ flutter:
   assets:
     - assets/brand/nyto_logo_primary.png
     - assets/brand/nyto_logo_wordmark.png
-    - assets/video/welcome_01.jpg
-    - assets/video/welcome_02.jpg
-    - assets/video/welcome_03.jpg
-    - assets/video/welcome_04.jpg
-    - assets/video/welcome_05.jpg
     - assets/video/welcome_loop.mp4
 
   # An image asset can refer to one or more resolution-specific "variants", see

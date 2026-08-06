@@ -198,44 +198,44 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(
-                            height: 92,
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 700),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (child, animation) {
-                                final slide = Tween<Offset>(
-                                  begin: const Offset(0, 0.12),
-                                  end: Offset.zero,
-                                ).animate(animation);
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: SlideTransition(
-                                    position: slide,
-                                    child: child,
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                _headlines[_headlineIndex],
-                                key: ValueKey(_headlineIndex),
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.fraunces(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.12,
-                                  letterSpacing: -0.4,
-                                  color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black
-                                          .withValues(alpha: 0.45),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 700),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            // Avoid stacking old/new text — clipped leftovers looked like white dots.
+                            layoutBuilder: (currentChild, _) =>
+                                currentChild ?? const SizedBox.shrink(),
+                            transitionBuilder: (child, animation) {
+                              final slide = Tween<Offset>(
+                                begin: const Offset(0, 0.08),
+                                end: Offset.zero,
+                              ).animate(animation);
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: slide,
+                                  child: child,
                                 ),
+                              );
+                            },
+                            child: Text(
+                              _headlines[_headlineIndex],
+                              key: ValueKey(_headlineIndex),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.fraunces(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w500,
+                                height: 1.18,
+                                letterSpacing: -0.4,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    color:
+                                        Colors.black.withValues(alpha: 0.45),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
                               ),
                             ),
                           ),

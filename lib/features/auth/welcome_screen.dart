@@ -19,13 +19,6 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
   static const _videoAsset = 'assets/video/welcome_loop.mp4';
-  static const _stills = <String>[
-    'assets/video/welcome_01.jpg',
-    'assets/video/welcome_02.jpg',
-    'assets/video/welcome_03.jpg',
-    'assets/video/welcome_04.jpg',
-    'assets/video/welcome_05.jpg',
-  ];
 
   static const _headlines = <String>[
     "You've been invited\nto dinner.",
@@ -36,9 +29,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   VideoPlayerController? _video;
   bool _useVideo = false;
   bool _uiReady = false;
-  int _stillIndex = 0;
   int _headlineIndex = 0;
-  Timer? _stillTimer;
   Timer? _headlineTimer;
   late final AnimationController _enter;
 
@@ -74,8 +65,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   Future<void> _bootMedia() async {
-    // Show still + UI immediately — never block first paint on video decode.
-    _startStillLoop();
+    // Paint UI immediately on brand ink; video starts in background.
     _revealUi();
     // ignore: unawaited_futures
     _tryStartVideo();
@@ -97,13 +87,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         await controller.dispose();
         return;
       }
-      _stillTimer?.cancel();
       setState(() {
         _video = controller;
         _useVideo = true;
       });
     } catch (_) {
-      // Stills already running — fine.
+      // Stay on brand ink — fine.
     }
   }
 
@@ -112,14 +101,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     setState(() => _uiReady = true);
     _enter.forward(from: 0);
     _startHeadlineLoop();
-  }
-
-  void _startStillLoop() {
-    _stillTimer?.cancel();
-    _stillTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-      if (!mounted || _useVideo) return;
-      setState(() => _stillIndex = (_stillIndex + 1) % _stills.length);
-    });
   }
 
   void _startHeadlineLoop() {
@@ -144,7 +125,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   @override
   void dispose() {
-    _stillTimer?.cancel();
     _headlineTimer?.cancel();
     _video?.dispose();
     _enter.dispose();
@@ -173,8 +153,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             _MediaBackdrop(
               useVideo: _useVideo,
               video: _video,
-              stills: _stills,
-              stillIndex: _stillIndex,
             ),
             const _CinematicScrim(),
             SafeArea(
@@ -198,44 +176,44 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(
-                            height: 92,
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 700),
-                              switchInCurve: Curves.easeOutCubic,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (child, animation) {
-                                final slide = Tween<Offset>(
-                                  begin: const Offset(0, 0.12),
-                                  end: Offset.zero,
-                                ).animate(animation);
-                                return FadeTransition(
-                                  opacity: animation,
-                                  child: SlideTransition(
-                                    position: slide,
-                                    child: child,
-                                  ),
-                                );
-                              },
-                              child: Text(
-                                _headlines[_headlineIndex],
-                                key: ValueKey(_headlineIndex),
-                                textAlign: TextAlign.center,
-                                style: GoogleFonts.fraunces(
-                                  fontSize: 36,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.12,
-                                  letterSpacing: -0.4,
-                                  color: Colors.white,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black
-                                          .withValues(alpha: 0.45),
-                                      blurRadius: 24,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 700),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            // Avoid stacking old/new text — clipped leftovers looked like white dots.
+                            layoutBuilder: (currentChild, _) =>
+                                currentChild ?? const SizedBox.shrink(),
+                            transitionBuilder: (child, animation) {
+                              final slide = Tween<Offset>(
+                                begin: const Offset(0, 0.08),
+                                end: Offset.zero,
+                              ).animate(animation);
+                              return FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: slide,
+                                  child: child,
                                 ),
+                              );
+                            },
+                            child: Text(
+                              _headlines[_headlineIndex],
+                              key: ValueKey(_headlineIndex),
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.fraunces(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w500,
+                                height: 1.18,
+                                letterSpacing: -0.4,
+                                color: Colors.white,
+                                shadows: [
+                                  Shadow(
+                                    color:
+                                        Colors.black.withValues(alpha: 0.45),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
@@ -325,14 +303,10 @@ class _MediaBackdrop extends StatelessWidget {
   const _MediaBackdrop({
     required this.useVideo,
     required this.video,
-    required this.stills,
-    required this.stillIndex,
   });
 
   final bool useVideo;
   final VideoPlayerController? video;
-  final List<String> stills;
-  final int stillIndex;
 
   @override
   Widget build(BuildContext context) {
@@ -351,27 +325,7 @@ class _MediaBackdrop extends StatelessWidget {
       );
     }
 
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 1200),
-      switchInCurve: Curves.easeInOutCubic,
-      switchOutCurve: Curves.easeInOutCubic,
-      child: TweenAnimationBuilder<double>(
-        key: ValueKey(stills[stillIndex]),
-        tween: Tween(begin: 1.0, end: 1.07),
-        duration: const Duration(seconds: 5),
-        curve: Curves.easeInOut,
-        builder: (context, scale, child) {
-          return Transform.scale(scale: scale, child: child);
-        },
-        child: Image.asset(
-          stills[stillIndex],
-          fit: BoxFit.cover,
-          width: double.infinity,
-          height: double.infinity,
-          gaplessPlayback: true,
-        ),
-      ),
-    );
+    return const ColoredBox(color: NytoColors.brandInk);
   }
 }
 

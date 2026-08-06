@@ -23,12 +23,6 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _runSplash() async {
     if (!mounted || _navigated) return;
 
-    // Preload Welcome stills during brand hold.
-    // ignore: unawaited_futures
-    precacheImage(const AssetImage('assets/video/welcome_01.jpg'), context);
-    // ignore: unawaited_futures
-    precacheImage(const AssetImage('assets/video/welcome_02.jpg'), context);
-
     // Hold brand, then soft crossfade ≈ 2s total feel (warm re-open path).
     await Future<void>.delayed(const Duration(milliseconds: 1400));
     if (!mounted || _navigated) return;

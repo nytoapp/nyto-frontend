@@ -100,7 +100,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                     style: GoogleFonts.fraunces(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: NytoColors.orange,
+                      color: NytoColors.cta,
                       letterSpacing: 3.5,
                     ),
                   ),
@@ -173,7 +173,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                             width: 6,
                             height: 6,
                             decoration: const BoxDecoration(
-                              color: NytoColors.orange,
+                              color: NytoColors.cta,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -221,8 +221,8 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: _canContinue
-                          ? NytoColors.orange
-                          : NytoColors.orangeDisabled,
+                          ? NytoColors.cta
+                          : NytoColors.ctaDisabled,
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: Row(
@@ -291,7 +291,7 @@ class _BookingOptionCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: selected
-                  ? NytoColors.orange
+                  ? NytoColors.cta
                   : NytoColors.cream.withValues(alpha: 0.12),
               width: selected ? 1.4 : 1,
             ),
@@ -306,14 +306,14 @@ class _BookingOptionCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: selected
-                          ? NytoColors.orange.withValues(alpha: 0.18)
+                          ? NytoColors.cta.withValues(alpha: 0.18)
                           : NytoColors.cream.withValues(alpha: 0.06),
                     ),
                     child: Icon(
                       icon,
                       size: 22,
                       color: selected
-                          ? NytoColors.orange
+                          ? NytoColors.cta
                           : NytoColors.creamMuted,
                     ),
                   ),
@@ -350,7 +350,7 @@ class _BookingOptionCard extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: selected
-                            ? NytoColors.orange
+                            ? NytoColors.cta
                             : NytoColors.cream.withValues(alpha: 0.35),
                         width: 1.6,
                       ),
@@ -361,7 +361,7 @@ class _BookingOptionCard extends StatelessWidget {
                               width: 12,
                               height: 12,
                               decoration: const BoxDecoration(
-                                color: NytoColors.orange,
+                                color: NytoColors.cta,
                                 shape: BoxShape.circle,
                               ),
                             ),

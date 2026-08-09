@@ -7,7 +7,7 @@ import 'package:image/image.dart';
 /// Kills the baked-in light-pink squircle halo that shows as a home-dock rim.
 void main() {
   const srcPath =
-      r'C:\dev\nytoapp\nytoapp\designs\NYTO Logos\NYTO_AppIcon_512.png';
+      r'C:\dev\nytoapp\nytoapp\designs\NYTO Logos\NYTO_AppIcon_1024.png';
   // Pure black — matches drawer look the user approved
   const plateR = 0;
   const plateG = 0;
@@ -19,8 +19,6 @@ void main() {
     stderr.writeln('Failed to decode $srcPath');
     exit(1);
   }
-
-  File('assets/brand/nyto_app_icon_512.png').writeAsBytesSync(bytes);
 
   final w = src.width;
   final h = src.height;
@@ -66,11 +64,44 @@ void main() {
     }
   }
 
-  // 2) Place ring on pure black, inset so circular mask AA only samples black.
-  const artRatio = 0.62;
+  // 2) Crop to ring bounds, then scale LARGE onto black plate.
+  //    (Resizing the full padded canvas kept the ring tiny.)
+  var minX = w;
+  var minY = h;
+  var maxX = 0;
+  var maxY = 0;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final p = ring.getPixel(x, y);
+      if (p.a < 8) continue;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX <= minX || maxY <= minY) {
+    stderr.writeln('No ring pixels found in source icon');
+    exit(1);
+  }
+  final pad = ((maxX - minX) * 0.08).round().clamp(4, 48);
+  minX = (minX - pad).clamp(0, w - 1);
+  minY = (minY - pad).clamp(0, h - 1);
+  maxX = (maxX + pad).clamp(0, w - 1);
+  maxY = (maxY + pad).clamp(0, h - 1);
+  final cropped = copyCrop(
+    ring,
+    x: minX,
+    y: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  );
+
+  // Slightly bigger than 0.64; keep under ~0.72 so Realme mask doesn't clip the dot.
+  const artRatio = 0.70;
   final artSize = (w * artRatio).round();
   final art = copyResize(
-    ring,
+    cropped,
     width: artSize,
     height: artSize,
     interpolation: Interpolation.average,
@@ -82,19 +113,17 @@ void main() {
   final oy = ((h - artSize) / 2).round();
   compositeImage(composed, art, dstX: ox, dstY: oy);
 
-  // 3) Hard clamp: outer band of the final canvas must be pure black.
-  //    Home dock circular mask anti-aliases this band — no pink allowed.
+  // Only wipe the extreme outer rim (squircle AA) — do not eat the logo tip/dot.
   final cMaxR = math.min((w - 1) / 2.0, (h - 1) / 2.0);
   for (var y = 0; y < h; y++) {
     for (var x = 0; x < w; x++) {
       final dx = x - (w - 1) / 2.0;
       final dy = y - (h - 1) / 2.0;
       final dist = math.sqrt(dx * dx + dy * dy) / cMaxR;
-      if (dist >= 0.86) {
+      if (dist >= 0.97) {
         composed.setPixelRgba(x, y, plateR, plateG, plateB, 255);
       } else {
         final p = composed.getPixel(x, y);
-        // Flatten any leftover transparency to black plate
         if (p.a < 255) {
           composed.setPixelRgba(x, y, plateR, plateG, plateB, 255);
         }
@@ -117,10 +146,24 @@ void main() {
       interpolation: Interpolation.average,
     );
     // Re-clamp after resize (interpolation can reintroduce fringe)
-    _forceOuterBlack(resized, plateR, plateG, plateB, 0.86);
+    _forceOuterBlack(resized, plateR, plateG, plateB, 0.97);
     File('android/app/src/main/res/${entry.key}/ic_launcher.png')
         .writeAsBytesSync(encodePng(resized));
   }
+
+  // Also refresh Flutter brand assets used for adaptive / previews.
+  File('assets/brand/nyto_adaptive_foreground_1024.png')
+      .writeAsBytesSync(encodePng(composed));
+  File('assets/brand/nyto_app_icon_1024.png')
+      .writeAsBytesSync(encodePng(composed));
+  final icon512 = copyResize(
+    composed,
+    width: 512,
+    height: 512,
+    interpolation: Interpolation.average,
+  );
+  _forceOuterBlack(icon512, plateR, plateG, plateB, 0.97);
+  File('assets/brand/nyto_app_icon_512.png').writeAsBytesSync(encodePng(icon512));
 
   const fgSizes = <String, int>{
     'drawable-mdpi': 108,
@@ -138,7 +181,7 @@ void main() {
       height: entry.value,
       interpolation: Interpolation.average,
     );
-    _forceOuterBlack(resized, plateR, plateG, plateB, 0.86);
+    _forceOuterBlack(resized, plateR, plateG, plateB, 0.97);
     File('${dir.path}/ic_launcher_foreground.png')
         .writeAsBytesSync(encodePng(resized));
   }

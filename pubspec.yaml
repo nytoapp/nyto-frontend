@@ -38,6 +38,7 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.5.3
   video_player: ^2.10.0
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -74,6 +75,7 @@ flutter:
   assets:
     - assets/brand/nyto_logo_primary.png
     - assets/brand/nyto_logo_wordmark.png
+    - assets/brand/google_g.svg
     - assets/video/welcome_loop.mp4
 
   # An image asset can refer to one or more resolution-specific "variants", see

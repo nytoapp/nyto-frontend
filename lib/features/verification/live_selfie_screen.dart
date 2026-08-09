@@ -105,7 +105,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                 style: GoogleFonts.fraunces(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: NytoColors.orange,
+                  color: NytoColors.cta,
                   letterSpacing: 4,
                 ),
               ),
@@ -205,7 +205,7 @@ class _LiveSelfieScreenState extends State<LiveSelfieScreen> {
                     height: 54,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: isSuccess ? NytoColors.moss : NytoColors.orange,
+                      color: isSuccess ? NytoColors.moss : NytoColors.cta,
                       borderRadius: BorderRadius.circular(28),
                     ),
                     child: isBusy
@@ -271,7 +271,7 @@ class _SelfieOval extends StatelessWidget {
             borderColor: success
                 ? NytoColors.moss
                 : NytoColors.cream.withValues(alpha: 0.35),
-            tickColor: NytoColors.orange,
+            tickColor: NytoColors.cta,
             fillColor: success
                 ? NytoColors.moss.withValues(alpha: 0.22)
                 : const Color(0xFF2A2520),
@@ -304,7 +304,7 @@ class _SelfieOval extends StatelessWidget {
                   color: NytoColors.bg.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: NytoColors.orange.withValues(alpha: 0.6),
+                    color: NytoColors.cta.withValues(alpha: 0.6),
                   ),
                 ),
                 child: Text(
@@ -428,7 +428,7 @@ class _InstructionChip extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 15, color: NytoColors.orange),
+          Icon(icon, size: 15, color: NytoColors.cta),
           const SizedBox(width: 8),
           Flexible(
             child: Text(

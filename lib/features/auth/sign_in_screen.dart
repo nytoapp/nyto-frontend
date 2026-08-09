@@ -187,7 +187,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 height: 54,
                 child: FilledButton(
                   style: FilledButton.styleFrom(
-                    backgroundColor: NytoColors.orange,
+                    backgroundColor: NytoColors.cta,
                     foregroundColor: NytoColors.cream,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),

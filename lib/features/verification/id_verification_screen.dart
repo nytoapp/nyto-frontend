@@ -98,7 +98,7 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
                       style: GoogleFonts.fraunces(
                         fontSize: 18,
                         fontWeight: FontWeight.w600,
-                        color: NytoColors.orange,
+                        color: NytoColors.cta,
                         letterSpacing: 4,
                       ),
                     ),
@@ -218,8 +218,8 @@ class _IdVerificationScreenState extends State<IdVerificationScreen> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: _canContinue
-                          ? NytoColors.orange
-                          : NytoColors.orangeDisabled,
+                          ? NytoColors.cta
+                          : NytoColors.ctaDisabled,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
@@ -266,12 +266,12 @@ class _IdOptionTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           decoration: BoxDecoration(
             color: selected
-                ? NytoColors.orange.withValues(alpha: 0.12)
+                ? NytoColors.cta.withValues(alpha: 0.12)
                 : NytoColors.surface,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: selected
-                  ? NytoColors.orange
+                  ? NytoColors.cta
                   : NytoColors.cream.withValues(alpha: 0.14),
             ),
           ),
@@ -291,7 +291,7 @@ class _IdOptionTile extends StatelessWidget {
                 const Icon(
                   Icons.check_circle,
                   size: 20,
-                  color: NytoColors.orange,
+                  color: NytoColors.cta,
                 )
               else
                 Icon(
@@ -351,7 +351,7 @@ class _UploadZone extends StatelessWidget {
                         ? Icons.check_circle_outline
                         : Icons.upload_rounded,
                     size: 28,
-                    color: uploaded ? NytoColors.moss : NytoColors.orange,
+                    color: uploaded ? NytoColors.moss : NytoColors.cta,
                   ),
                   const SizedBox(height: 12),
                   Text(

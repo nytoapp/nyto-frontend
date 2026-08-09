@@ -127,7 +127,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     style: GoogleFonts.fraunces(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: NytoColors.orange,
+                      color: NytoColors.cta,
                       letterSpacing: 3.5,
                     ),
                   ),
@@ -146,7 +146,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1.6,
-                        color: NytoColors.orange,
+                        color: NytoColors.cta,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -250,10 +250,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         vertical: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: NytoColors.orange.withValues(alpha: 0.1),
+                        color: NytoColors.cta.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: NytoColors.orange.withValues(alpha: 0.45),
+                          color: NytoColors.cta.withValues(alpha: 0.45),
                         ),
                       ),
                       child: Row(
@@ -262,7 +262,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                           Icon(
                             Icons.lock_outline,
                             size: 16,
-                            color: NytoColors.orange.withValues(alpha: 0.95),
+                            color: NytoColors.cta.withValues(alpha: 0.95),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -338,7 +338,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                         height: 54,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: NytoColors.orange,
+                          color: NytoColors.cta,
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: _paying
@@ -446,7 +446,7 @@ class _PayMethodTile extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected
-                  ? NytoColors.orange
+                  ? NytoColors.cta
                   : NytoColors.cream.withValues(alpha: 0.1),
               width: selected ? 1.4 : 1,
             ),
@@ -457,7 +457,7 @@ class _PayMethodTile extends StatelessWidget {
               Icon(
                 icon,
                 size: 22,
-                color: selected ? NytoColors.orange : NytoColors.creamMuted,
+                color: selected ? NytoColors.cta : NytoColors.creamMuted,
               ),
               const SizedBox(height: 12),
               Text(

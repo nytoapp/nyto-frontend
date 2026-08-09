@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/api/api_client.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
+import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/booking/booking_type_screen.dart';
+import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
-
-enum TableFilter { thisWeek, daytime, evening, womenOnly }
 
 enum MealSlot { daytimeLunch, eveningDinner }
 
@@ -22,6 +23,7 @@ class UpcomingTable {
     required this.seatsTaken,
     this.womenOnly = false,
     this.capacity = 6,
+    this.section = 'This week',
   });
 
   final String id;
@@ -34,21 +36,16 @@ class UpcomingTable {
   final int seatsTaken;
   final bool womenOnly;
   final int capacity;
+  final String section;
 
   int get seatsLeft => capacity - seatsTaken;
 
-  String get slotLabel => switch (slot) {
-        MealSlot.daytimeLunch => 'Daytime Lunch',
-        MealSlot.eveningDinner => 'Evening Dinner',
+  String get mealLabel => switch (slot) {
+        MealSlot.daytimeLunch => 'Lunch',
+        MealSlot.eveningDinner => 'Dinner',
       };
 
-  String get priceLabel {
-    final raw = priceInr.toString();
-    if (raw.length <= 3) return '₹$raw';
-    final head = raw.substring(0, raw.length - 3);
-    final tail = raw.substring(raw.length - 3);
-    return '₹$head,$tail';
-  }
+  String get fullDateLabel => '$weekday, $dateLabel';
 
   factory UpcomingTable.fromJson(Map<String, dynamic> json) {
     final slotRaw = json['slot'] as String? ?? 'EVENING_DINNER';
@@ -65,11 +62,12 @@ class UpcomingTable {
       seatsTaken: json['seatsTaken'] as int? ?? 0,
       womenOnly: json['womenOnly'] as bool? ?? false,
       capacity: json['capacity'] as int? ?? 6,
+      section: json['section'] as String? ?? 'This week',
     );
   }
 }
 
-/// Home — visual match to `designs/Screenshot (3710–3715)`.
+/// Post-onboarding home — All tables layout (NYTO brand, Hyderabad).
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -78,10 +76,57 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  TableFilter _filter = TableFilter.thisWeek;
+  int _tab = 0;
   List<UpcomingTable> _tables = const [];
   bool _loading = true;
-  String? _error;
+
+  static const _demoTables = <UpcomingTable>[
+    UpcomingTable(
+      id: 'demo-1',
+      weekday: 'Friday',
+      dateLabel: 'August 14',
+      timeLabel: '8:00 PM',
+      priceInr: 1499,
+      slot: MealSlot.eveningDinner,
+      area: 'Jubilee Hills',
+      seatsTaken: 3,
+      section: 'This week',
+    ),
+    UpcomingTable(
+      id: 'demo-2',
+      weekday: 'Saturday',
+      dateLabel: 'August 15',
+      timeLabel: '1:00 PM',
+      priceInr: 1299,
+      slot: MealSlot.daytimeLunch,
+      area: 'Banjara Hills',
+      seatsTaken: 2,
+      section: 'This week',
+    ),
+    UpcomingTable(
+      id: 'demo-3',
+      weekday: 'Wednesday',
+      dateLabel: 'August 19',
+      timeLabel: '8:00 PM',
+      priceInr: 1499,
+      slot: MealSlot.eveningDinner,
+      area: 'Gachibowli',
+      seatsTaken: 4,
+      womenOnly: true,
+      section: 'Next week',
+    ),
+    UpcomingTable(
+      id: 'demo-4',
+      weekday: 'Wednesday',
+      dateLabel: 'August 26',
+      timeLabel: '8:00 PM',
+      priceInr: 1499,
+      slot: MealSlot.eveningDinner,
+      area: 'Madhapur',
+      seatsTaken: 1,
+      section: 'In 2 weeks',
+    ),
+  ];
 
   @override
   void initState() {
@@ -89,419 +134,307 @@ class _HomeScreenState extends State<HomeScreen> {
     _load();
   }
 
-  String get _apiFilter => switch (_filter) {
-        TableFilter.thisWeek => 'this_week',
-        TableFilter.daytime => 'daytime',
-        TableFilter.evening => 'evening',
-        TableFilter.womenOnly => 'women_only',
-      };
-
   Future<void> _load() async {
+    // Show demo instantly so Home never hangs when API is unreachable.
     setState(() {
-      _loading = true;
-      _error = null;
+      _tables = _demoTables;
+      _loading = false;
     });
+
     try {
-      final rows = await tablesApi.list(filter: _apiFilter);
+      final rows = await tablesApi
+          .list(filter: 'this_week')
+          .timeout(const Duration(seconds: 2));
       if (!mounted) return;
-      setState(() {
-        _tables = rows.map(UpcomingTable.fromJson).toList();
-        _loading = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      final parsed = rows.map(UpcomingTable.fromJson).toList();
+      if (parsed.isEmpty) return;
+      setState(() => _tables = parsed);
+    } on ApiException catch (_) {
+      // Keep demo tables.
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Could not load tables. Is the backend running?';
-        _loading = false;
-      });
+      // Timeout / network — keep demo tables.
     }
   }
 
-  Future<void> _setFilter(TableFilter filter) async {
-    setState(() => _filter = filter);
-    await _load();
+  Map<String, List<UpcomingTable>> get _grouped {
+    final map = <String, List<UpcomingTable>>{};
+    for (final t in _tables) {
+      map.putIfAbsent(t.section, () => []).add(t);
+    }
+    // Stable order
+    const order = ['This week', 'Next week', 'In 2 weeks'];
+    final sorted = <String, List<UpcomingTable>>{};
+    for (final key in order) {
+      if (map.containsKey(key)) sorted[key] = map[key]!;
+    }
+    for (final e in map.entries) {
+      if (!sorted.containsKey(e.key)) sorted[e.key] = e.value;
+    }
+    return sorted;
+  }
+
+  void _openTable(UpcomingTable table) {
+    Navigator.of(context).push(
+      onboardingRoute(BookingTypeScreen(table: table)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final tables = _tables;
-
-    return Scaffold(
-      backgroundColor: NytoColors.bg,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: NytoColors.brandInk,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: NytoColors.brandInk,
+        extendBody: true,
+        body: Stack(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: Row(
+            const NytoAmbientField(intense: true),
+            SafeArea(
+              bottom: false,
+              child: IndexedStack(
+                index: _tab,
                 children: [
-                  Text(
-                    'NYTO',
-                    style: GoogleFonts.fraunces(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      color: NytoColors.orange,
-                      letterSpacing: 4,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const ProfileScreen(),
+                  _TablesTab(
+                    loading: _loading,
+                    grouped: _grouped,
+                    onOpen: _openTable,
+                    onBell: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Notifications coming soon',
+                            style: GoogleFonts.dmSans(),
+                          ),
+                          backgroundColor: NytoColors.surfaceElevated,
                         ),
                       );
                     },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: NytoColors.surface,
-                        border: Border.all(
-                          color: NytoColors.cream.withValues(alpha: 0.18),
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.person_outline,
-                        size: 20,
-                        color: NytoColors.cream.withValues(alpha: 0.75),
-                      ),
-                    ),
                   ),
+                  const _PlaceholderTab(
+                    title: 'Chat',
+                    body: 'Your table chats unlock after you book a seat.',
+                    icon: Icons.chat_bubble_outline_rounded,
+                  ),
+                  const _PlaceholderTab(
+                    title: 'Events',
+                    body: 'Past nights and upcoming bookings will live here.',
+                    icon: Icons.calendar_today_outlined,
+                  ),
+                  const ProfileScreen(),
                 ],
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
-              child: Text(
-                'Upcoming tables',
-                style: GoogleFonts.fraunces(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w400,
-                  color: NytoColors.cream,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-              child: Text(
-                'Pick a night and price tier. We handle the rest.',
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  color: NytoColors.creamMuted,
-                  height: 1.45,
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 40,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: [
-                  _FilterChip(
-                    label: 'This week',
-                    selected: _filter == TableFilter.thisWeek,
-                    onTap: () => _setFilter(TableFilter.thisWeek),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Daytime',
-                    selected: _filter == TableFilter.daytime,
-                    onTap: () => _setFilter(TableFilter.daytime),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Evening',
-                    selected: _filter == TableFilter.evening,
-                    onTap: () => _setFilter(TableFilter.evening),
-                  ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                    label: 'Women-only',
-                    selected: _filter == TableFilter.womenOnly,
-                    onTap: () => _setFilter(TableFilter.womenOnly),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: _loading
-                  ? const Center(
-                      child: CircularProgressIndicator(
-                        color: NytoColors.orange,
-                      ),
-                    )
-                  : _error != null
-                      ? Center(
-                          child: Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  _error!,
-                                  textAlign: TextAlign.center,
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 14,
-                                    color: NytoColors.creamMuted,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                TextButton(
-                                  onPressed: _load,
-                                  child: const Text('Retry'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      : tables.isEmpty
-                          ? Center(
-                              child: Text(
-                                'No tables match this filter.',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 14,
-                                  color: NytoColors.creamMuted,
-                                ),
-                              ),
-                            )
-                          : ListView.separated(
-                              padding:
-                                  const EdgeInsets.fromLTRB(24, 16, 24, 28),
-                              itemCount: tables.length,
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(height: 12),
-                              itemBuilder: (context, index) {
-                                return _TableCard(
-                                  table: tables[index],
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute<void>(
-                                        builder: (_) => BookingTypeScreen(
-                                          table: tables[index],
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                );
-                              },
-                            ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  const _FilterChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? NytoColors.orange : NytoColors.surface,
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: selected
-                  ? NytoColors.orange
-                  : NytoColors.cream.withValues(alpha: 0.14),
-            ),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.dmSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: selected
-                  ? NytoColors.cream
-                  : NytoColors.cream.withValues(alpha: 0.75),
-            ),
-          ),
+        bottomNavigationBar: _NytoBottomNav(
+          index: _tab,
+          onChanged: (i) => setState(() => _tab = i),
         ),
       ),
     );
   }
 }
 
-class _TableCard extends StatelessWidget {
-  const _TableCard({required this.table, required this.onTap});
+class _TablesTab extends StatelessWidget {
+  const _TablesTab({
+    required this.loading,
+    required this.grouped,
+    required this.onOpen,
+    required this.onBell,
+  });
+
+  final bool loading;
+  final Map<String, List<UpcomingTable>> grouped;
+  final ValueChanged<UpcomingTable> onOpen;
+  final VoidCallback onBell;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 16, 0),
+          child: Row(
+            children: [
+              Text(
+                'Hyderabad',
+                style: GoogleFonts.fraunces(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w500,
+                  color: NytoColors.cream,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.location_on_rounded,
+                size: 20,
+                color: NytoColors.brandPink.withValues(alpha: 0.95),
+              ),
+              const Spacer(),
+              IconButton(
+                onPressed: onBell,
+                icon: Icon(
+                  Icons.notifications_none_rounded,
+                  color: NytoColors.cream.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
+          child: Text(
+            'All tables',
+            style: GoogleFonts.dmSans(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: NytoColors.cream,
+            ),
+          ),
+        ),
+        Expanded(
+          child: loading
+              ? const Center(
+                  child: CircularProgressIndicator(color: NytoColors.brandPink),
+                )
+              : grouped.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No tables yet — check back soon.',
+                        style: GoogleFonts.dmSans(
+                          color: NytoColors.cream.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 110),
+                      children: [
+                        for (final entry in grouped.entries) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10, bottom: 12),
+                            child: Text(
+                              entry.key,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: NytoColors.cream.withValues(alpha: 0.45),
+                              ),
+                            ),
+                          ),
+                          for (final table in entry.value) ...[
+                            _EventRow(
+                              table: table,
+                              onTap: () => onOpen(table),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                        ],
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EventRow extends StatelessWidget {
+  const _EventRow({required this.table, required this.onTap});
 
   final UpcomingTable table;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final urgent = table.seatsLeft == 1;
-    final seatsLabel =
-        '${table.seatsLeft} seat${table.seatsLeft == 1 ? '' : 's'} left';
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: NytoColors.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: NytoColors.cream.withValues(alpha: 0.08),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        borderRadius: BorderRadius.circular(20),
+        child: NytoGlass.panel(
+          borderRadius: 20,
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+          child: Row(
             children: [
               Container(
-                height: 2,
+                width: 48,
+                height: 48,
                 decoration: BoxDecoration(
-                  color: NytoColors.orange.withValues(alpha: 0.55),
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      NytoColors.ctaDeep.withValues(alpha: 0.85),
+                      NytoColors.cta.withValues(alpha: 0.75),
+                    ],
                   ),
                 ),
+                child: Icon(
+                  table.slot == MealSlot.daytimeLunch
+                      ? Icons.wb_sunny_outlined
+                      : Icons.restaurant_rounded,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+              const SizedBox(width: 14),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text.rich(
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: '${table.weekday} ',
-                                      style: GoogleFonts.fraunces(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w500,
-                                        color: NytoColors.cream,
-                                      ),
-                                    ),
-                                    TextSpan(
-                                      text: table.dateLabel,
-                                      style: GoogleFonts.fraunces(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w400,
-                                        fontStyle: FontStyle.italic,
-                                        color: NytoColors.cream,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                table.timeLabel,
-                                style: GoogleFonts.jetBrainsMono(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w400,
-                                  color: NytoColors.creamMuted,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              table.priceLabel,
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w600,
-                                color: NytoColors.orange,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'per seat',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 11,
-                                color: NytoColors.creamMuted,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                    Text(
+                      table.fullDateLabel,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: NytoColors.cream,
+                      ),
                     ),
-                    const SizedBox(height: 14),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _MetaPill(label: table.slotLabel),
-                        if (table.womenOnly)
-                          const _MetaPill(
-                            label: 'Women-only',
-                            tone: _PillTone.moss,
-                          ),
-                        _MetaPill(label: table.area),
-                      ],
+                    const SizedBox(height: 2),
+                    Text(
+                      '${table.mealLabel}  ·  ${table.timeLabel}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        color: NytoColors.cream.withValues(alpha: 0.5),
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _SeatFillBar(taken: table.seatsTaken),
+                    if (table.womenOnly) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Women-only table',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: NytoColors.ctaSoft.withValues(alpha: 0.95),
                         ),
-                        const SizedBox(width: 12),
-                        Icon(
-                          Icons.person_outline,
-                          size: 14,
-                          color: urgent
-                              ? NytoColors.orange
-                              : NytoColors.creamMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          seatsLabel,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 12,
-                            fontWeight:
-                                urgent ? FontWeight.w600 : FontWeight.w400,
-                            color: urgent
-                                ? NytoColors.orange
-                                : NytoColors.creamMuted,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ],
+                ),
+              ),
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [
+                      NytoColors.ctaSoft,
+                      NytoColors.cta,
+                    ],
+                  ),
+                ),
+                child: const Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white,
+                  size: 20,
                 ),
               ),
             ],
@@ -512,67 +445,154 @@ class _TableCard extends StatelessWidget {
   }
 }
 
-enum _PillTone { neutral, moss }
+class _NytoBottomNav extends StatelessWidget {
+  const _NytoBottomNav({
+    required this.index,
+    required this.onChanged,
+  });
 
-class _MetaPill extends StatelessWidget {
-  const _MetaPill({required this.label, this.tone = _PillTone.neutral});
-
-  final String label;
-  final _PillTone tone;
+  final int index;
+  final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final isMoss = tone == _PillTone.moss;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isMoss
-            ? NytoColors.moss.withValues(alpha: 0.35)
-            : NytoColors.cream.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isMoss
-              ? NytoColors.moss.withValues(alpha: 0.55)
-              : NytoColors.cream.withValues(alpha: 0.08),
-        ),
-      ),
-      child: Text(
-        label,
-        style: GoogleFonts.dmSans(
-          fontSize: 12,
-          fontWeight: FontWeight.w500,
-          color: isMoss
-              ? const Color(0xFFC8D9CE)
-              : NytoColors.cream.withValues(alpha: 0.85),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: SafeArea(
+        top: false,
+        child: NytoGlass(
+          borderRadius: 28,
+          blur: 36,
+          tint: Colors.white.withValues(alpha: 0.14),
+          borderColor: Colors.white.withValues(alpha: 0.24),
+          padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+          child: Row(
+            children: [
+              _NavItem(
+                icon: Icons.home_rounded,
+                label: 'Home',
+                selected: index == 0,
+                onTap: () => onChanged(0),
+              ),
+              _NavItem(
+                icon: Icons.chat_bubble_outline_rounded,
+                label: 'Chat',
+                selected: index == 1,
+                onTap: () => onChanged(1),
+              ),
+              _NavItem(
+                icon: Icons.calendar_today_outlined,
+                label: 'Events',
+                selected: index == 2,
+                onTap: () => onChanged(2),
+              ),
+              _NavItem(
+                icon: Icons.person_outline_rounded,
+                label: 'Profile',
+                selected: index == 3,
+                onTap: () => onChanged(3),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _SeatFillBar extends StatelessWidget {
-  const _SeatFillBar({required this.taken});
+class _NavItem extends StatelessWidget {
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final int taken;
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(6, (index) {
-        final filled = index < taken;
-        return Expanded(
-          child: Container(
-            margin: EdgeInsets.only(right: index == 5 ? 0 : 4),
-            height: 5,
-            decoration: BoxDecoration(
-              color: filled
-                  ? NytoColors.orange
-                  : NytoColors.cream.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(2),
-            ),
+    final color = selected
+        ? NytoColors.cta
+        : NytoColors.cream.withValues(alpha: 0.4);
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 220),
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          decoration: selected
+              ? BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  color: NytoColors.cta.withValues(alpha: 0.16),
+                )
+              : null,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: GoogleFonts.dmSans(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: color,
+                ),
+              ),
+            ],
           ),
-        );
-      }),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaceholderTab extends StatelessWidget {
+  const _PlaceholderTab({
+    required this.title,
+    required this.body,
+    required this.icon,
+  });
+
+  final String title;
+  final String body;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 40, color: NytoColors.cta.withValues(alpha: 0.85)),
+            const SizedBox(height: 16),
+            Text(
+              title,
+              style: GoogleFonts.fraunces(
+                fontSize: 26,
+                color: NytoColors.cream,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                height: 1.45,
+                color: NytoColors.cream.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

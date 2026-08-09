@@ -5,7 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/sign_in_screen.dart';
-import 'package:nyto_app/features/auth/sign_up_screen.dart';
+import 'package:nyto_app/features/onboarding/onboarding_flow.dart';
+import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:video_player/video_player.dart';
 
 /// Screen 2 — cinematic welcome: full-bleed media, invite copy, CTA stack.
@@ -112,9 +113,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   void _goSignUp() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const SignUpScreen()),
-    );
+    Navigator.of(context).push(onboardingRoute(const OnboardingFlow()));
   }
 
   void _goSignIn() {
@@ -230,12 +229,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                           ),
                           const SizedBox(height: 28),
                           _PrimaryCta(
-                            label: 'Find your table',
+                            label: 'Get started',
                             onTap: _goSignUp,
                           ),
                           const SizedBox(height: 12),
                           _SecondaryCta(
-                            label: 'Already on NYTO? Sign in',
+                            label: 'I already have an account',
                             onTap: _goSignIn,
                           ),
                           const SizedBox(height: 18),
@@ -341,13 +340,15 @@ class _CinematicScrim extends StatelessWidget {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Colors.black.withValues(alpha: 0.18),
+              Colors.black.withValues(alpha: 0.16),
               Colors.transparent,
-              NytoColors.brandInk.withValues(alpha: 0.08),
-              NytoColors.brandInk.withValues(alpha: 0.55),
-              NytoColors.brandInk.withValues(alpha: 0.88),
+              Colors.black.withValues(alpha: 0.15),
+              Colors.black.withValues(alpha: 0.72),
+              Colors.black.withValues(alpha: 0.94),
+              Colors.black,
             ],
-            stops: const [0.0, 0.32, 0.52, 0.74, 1.0],
+            // Heavy veil under CTAs / legal — video soft-fades out like Timeleft.
+            stops: const [0.0, 0.28, 0.48, 0.62, 0.78, 1.0],
           ),
         ),
       ),
@@ -372,14 +373,14 @@ class _PrimaryCta extends StatelessWidget {
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             colors: [
-              NytoColors.brandViolet,
-              NytoColors.brandMagenta,
-              NytoColors.brandPink,
+              NytoColors.ctaSoft,
+              NytoColors.cta,
+              NytoColors.ctaDeep,
             ],
           ),
           boxShadow: [
             BoxShadow(
-              color: NytoColors.brandMagenta.withValues(alpha: 0.38),
+              color: NytoColors.cta.withValues(alpha: 0.42),
               blurRadius: 28,
               offset: const Offset(0, 12),
             ),

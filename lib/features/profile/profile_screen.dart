@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
+import 'package:nyto_app/core/widgets/nyto_glass.dart';
 
-/// Profile — visual match to `designs/Screenshot (3728–3729)`.
+/// Profile — ice blue glass surfaces over dark ambient.
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: NytoColors.bg,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
+        bottom: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -23,16 +25,16 @@ class ProfileScreen extends StatelessWidget {
                     style: GoogleFonts.fraunces(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: NytoColors.orange,
+                      color: NytoColors.cta,
                       letterSpacing: 3.5,
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: Icon(
-                      Icons.close,
-                      color: NytoColors.cream.withValues(alpha: 0.7),
+                  Text(
+                    'Profile',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 14,
+                      color: NytoColors.subtext,
                     ),
                   ),
                 ],
@@ -45,7 +47,7 @@ class ProfileScreen extends StatelessWidget {
                     height: 72,
                     alignment: Alignment.center,
                     decoration: const BoxDecoration(
-                      color: NytoColors.orange,
+                      color: NytoColors.cta,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
@@ -77,13 +79,13 @@ class ProfileScreen extends StatelessWidget {
                             const Icon(
                               Icons.verified,
                               size: 18,
-                              color: NytoColors.orange,
+                              color: NytoColors.cta,
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Mumbai · South Mumbai',
+                          'Hyderabad · Jubilee Hills',
                           style: GoogleFonts.dmSans(
                             fontSize: 13,
                             color: NytoColors.creamMuted,
@@ -95,13 +97,9 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              Container(
-                width: double.infinity,
+              NytoGlass.panel(
+                borderRadius: 16,
                 padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: NytoColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -154,13 +152,9 @@ class ProfileScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
+              NytoGlass.panel(
+                borderRadius: 16,
                 padding: const EdgeInsets.all(18),
-                decoration: BoxDecoration(
-                  color: NytoColors.surface,
-                  borderRadius: BorderRadius.circular(16),
-                ),
                 child: Column(
                   children: [
                     Row(
@@ -218,108 +212,67 @@ class ProfileScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                'BADGES',
-                style: GoogleFonts.dmSans(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1.4,
-                  color: NytoColors.creamMuted,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: const [
-                  Expanded(
-                    child: _BadgeTile(
-                      icon: Icons.ramen_dining,
-                      label: 'First Table',
-                      tint: Color(0xFF5B4A7A),
+              const SizedBox(height: 20),
+              NytoGlass.panel(
+                borderRadius: 16,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                child: Column(
+                  children: [
+                    _ProfileLink(
+                      icon: Icons.event_note_outlined,
+                      label: 'My Bookings',
+                      badge: '2',
+                      onTap: () {},
                     ),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _BadgeTile(
-                      icon: Icons.place,
-                      label: 'Neighbourhood Regular',
-                      tint: Color(0xFF7A3E4A),
+                    _ProfileLink(
+                      icon: Icons.settings_outlined,
+                      label: 'Settings',
+                      onTap: () {},
                     ),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _BadgeTile(
-                      icon: Icons.local_florist,
-                      label: 'Women-Only Table',
-                      tint: Color(0xFF6A3A52),
+                    _ProfileLink(
+                      icon: Icons.help_outline_rounded,
+                      label: 'Help',
+                      onTap: () {},
                     ),
-                  ),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: _BadgeTile(
-                      icon: Icons.lock_outline,
-                      label: "Chef's Pick",
-                      tint: Color(0xFF3A3530),
-                      locked: true,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const _SettingsRow(
-                icon: Icons.calendar_today_outlined,
-                title: 'My Bookings',
-                trailing: '2 upcoming',
-              ),
-              const _SettingsRow(
-                icon: Icons.verified_user_outlined,
-                title: 'Verification',
-                trailing: 'Verified',
-                trailingColor: Color(0xFF7CB88A),
-              ),
-              const _SettingsRow(
-                icon: Icons.restaurant_menu,
-                title: 'Dietary Preferences',
-                trailing: 'Vegetarian',
-              ),
-              const _SettingsRow(
-                icon: Icons.support_agent,
-                title: 'Support',
-              ),
-              const SizedBox(height: 8),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Sign out — auth wiring later.'),
-                        backgroundColor: NytoColors.surface,
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.logout,
-                          size: 20,
-                          color: NytoColors.orange.withValues(alpha: 0.95),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Sign Out',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                            color: NytoColors.orange,
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Sign out — auth wiring later.'),
+                              backgroundColor: NytoColors.surface,
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 14,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.logout,
+                                size: 20,
+                                color: NytoColors.muted,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                'Sign Out',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: NytoColors.muted,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
               const SizedBox(height: 28),
@@ -327,10 +280,9 @@ class ProfileScreen extends StatelessWidget {
                 child: Text(
                   'NAVIGATE YOUR TIME OUT',
                   style: GoogleFonts.dmSans(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 2.2,
-                    color: NytoColors.creamMuted.withValues(alpha: 0.7),
+                    fontSize: 11,
+                    letterSpacing: 1.4,
+                    color: NytoColors.muted,
                   ),
                 ),
               ),
@@ -342,106 +294,76 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _BadgeTile extends StatelessWidget {
-  const _BadgeTile({
+class _ProfileLink extends StatelessWidget {
+  const _ProfileLink({
     required this.icon,
     required this.label,
-    required this.tint,
-    this.locked = false,
+    required this.onTap,
+    this.badge,
   });
 
   final IconData icon;
   final String label;
-  final Color tint;
-  final bool locked;
+  final VoidCallback onTap;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 96,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: NytoColors.surface,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: tint,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              icon,
-              size: 16,
-              color: NytoColors.cream.withValues(alpha: locked ? 0.4 : 1),
-            ),
-          ),
-          const Spacer(),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.dmSans(
-              fontSize: 10,
-              height: 1.2,
-              color: NytoColors.cream.withValues(alpha: locked ? 0.4 : 0.85),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SettingsRow extends StatelessWidget {
-  const _SettingsRow({
-    required this.icon,
-    required this.title,
-    this.trailing,
-    this.trailingColor,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? trailing;
-  final Color? trailingColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: NytoColors.creamMuted),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: GoogleFonts.dmSans(
-                fontSize: 15,
-                color: NytoColors.cream,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white.withValues(alpha: 0.06),
+                ),
+                child: Icon(icon, size: 18, color: NytoColors.ctaSoft),
               ),
-            ),
-          ),
-          if (trailing != null)
-            Text(
-              trailing!,
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                color: trailingColor ?? NytoColors.creamMuted,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: NytoColors.cream,
+                  ),
+                ),
               ),
-            ),
-          const SizedBox(width: 6),
-          Icon(
-            Icons.chevron_right,
-            size: 20,
-            color: NytoColors.cream.withValues(alpha: 0.35),
+              if (badge != null)
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: NytoColors.cta,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: NytoColors.muted,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

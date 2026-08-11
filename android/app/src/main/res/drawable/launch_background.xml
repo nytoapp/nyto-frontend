@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Solid ground only — logo comes from one ImageView (CENTER_CROP) everywhere. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@android:color/black" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/nyto_splash_logo" />
-    </item>
+    <item android:drawable="@color/nyto_ground" />
 </layer-list>

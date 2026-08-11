@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Same NYTO wordmark as Flutter Splash — visible on first tap (no black gap). -->
-    <style name="LaunchTheme" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/black</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/nyto_android12_splash</item>
-        <item name="windowSplashScreenIconBackgroundColor">@android:color/black</item>
-        <item name="postSplashScreenTheme">@style/NormalTheme</item>
+    <!--
+      Image 1 is the window background from frame 0.
+      Silent splash icon avoids the floating logo plate.
+      Do not use Theme.SplashScreen + installSplashScreen (that kept black longer).
+    -->
+    <style name="BootTheme" parent="@android:style/Theme.Black.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/nyto_ground</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_silent_icon</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/nyto_ground</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Black.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>

@@ -51,6 +51,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
+  image: ^4.9.1
 
 # Launcher label: AndroidManifest / iOS Info.plist (Nyto).
 # Android icons: dart run tool/make_ring_icon.dart  (official NYTO_AppIcon).
@@ -75,6 +76,7 @@ flutter:
   assets:
     - assets/brand/nyto_logo_primary.png
     - assets/brand/nyto_logo_wordmark.png
+    - assets/brand/nyto_boot_splash.png
     - assets/brand/google_g.svg
     - assets/video/welcome_loop.mp4
 

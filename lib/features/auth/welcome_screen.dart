@@ -11,7 +11,10 @@ import 'package:video_player/video_player.dart';
 
 /// Screen 2 — cinematic welcome: full-bleed media, invite copy, CTA stack.
 class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({super.key});
+  const WelcomeScreen({super.key, this.preloadedVideo});
+
+  /// Optional controller warmed on splash so video + UI reveal together.
+  final VideoPlayerController? preloadedVideo;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -20,6 +23,8 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
   static const _videoAsset = 'assets/video/welcome_loop.mp4';
+  static const _bootArt = 'assets/brand/nyto_boot_splash.png';
+  static const _bootChannel = MethodChannel('nyto/boot');
 
   static const _headlines = <String>[
     "You've been invited\nto dinner.",
@@ -42,7 +47,16 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       duration: const Duration(milliseconds: 520),
     );
     _setSystemUi();
-    _bootMedia();
+    final pre = widget.preloadedVideo;
+    if (pre != null && pre.value.isInitialized) {
+      _video = pre;
+      _useVideo = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _revealUi();
+      });
+    } else {
+      _bootMedia();
+    }
   }
 
   void _setSystemUi() {
@@ -66,17 +80,20 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   Future<void> _bootMedia() async {
-    // Paint UI immediately on brand ink; video starts in background.
+    // Wait for video (or timeout) BEFORE revealing text/CTAs —
+    // avoids the ugly "text on black, then video pops in" lag.
+    await _tryStartVideo();
+    if (!mounted) return;
     _revealUi();
-    // ignore: unawaited_futures
-    _tryStartVideo();
   }
 
   Future<void> _tryStartVideo() async {
     if (!await _hasBundledAsset(_videoAsset)) return;
     try {
       final controller = VideoPlayerController.asset(_videoAsset);
-      await controller.initialize();
+      await controller
+          .initialize()
+          .timeout(const Duration(milliseconds: 2800));
       await controller.setLooping(true);
       await controller.setVolume(0);
       if (!mounted) {
@@ -88,12 +105,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         await controller.dispose();
         return;
       }
+      // Paint one video frame before UI fades in.
       setState(() {
         _video = controller;
         _useVideo = true;
       });
+      await Future<void>.delayed(const Duration(milliseconds: 50));
     } catch (_) {
-      // Stay on brand ink — fine.
+      // Timeout / missing codec — reveal on ink rather than hang.
     }
   }
 
@@ -102,6 +121,16 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     setState(() => _uiReady = true);
     _enter.forward(from: 0);
     _startHeadlineLoop();
+    // Soft fade is handled natively on the Image 1 cover.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _dropNativeBridge();
+    });
+  }
+
+  Future<void> _dropNativeBridge() async {
+    try {
+      await _bootChannel.invokeMethod<void>('dropBridge');
+    } catch (_) {}
   }
 
   void _startHeadlineLoop() {
@@ -153,8 +182,17 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               useVideo: _useVideo,
               video: _video,
             ),
-            const _CinematicScrim(),
-            SafeArea(
+            // Same Image 1 art under native bridge until video is ready.
+            if (!_uiReady)
+              const Image(
+                image: AssetImage(_bootArt),
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                filterQuality: FilterQuality.high,
+              ),
+            if (_uiReady) const _CinematicScrim(),
+            if (_uiReady)
+              SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 10, 24, 14),
                 child: Column(

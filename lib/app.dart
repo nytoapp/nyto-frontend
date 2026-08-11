@@ -11,8 +11,7 @@ class NytoApp extends StatelessWidget {
       title: 'NYTO',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      // Cold start: native splash → Welcome.
-      // Warm resume (recent apps): keep current screen — no forced restart.
+      // Native BootActivity already showed Image 1 for 2s.
       home: const WelcomeScreen(),
     );
   }

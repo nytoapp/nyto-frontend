@@ -45,4 +45,5 @@ flutter {
 
 dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
 }

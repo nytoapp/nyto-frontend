@@ -11,6 +11,8 @@ class OnboardingData {
   String countryDial = '+91';
   String countryCode = 'IN';
   final Set<String> interests = {};
+  /// Custom interests added via search (id → display label). AI later.
+  final Map<String, String> customInterestLabels = {};
   bool notificationsEnabled = false;
 }
 
@@ -67,8 +69,8 @@ class OnboardingOptions {
   ];
 
   static const genders = <({String id, String label})>[
-    (id: 'woman', label: 'Woman'),
     (id: 'man', label: 'Man'),
+    (id: 'woman', label: 'Woman'),
     (id: 'nonbinary', label: 'Non-binary'),
     (id: 'skip', label: 'Prefer not to say'),
   ];

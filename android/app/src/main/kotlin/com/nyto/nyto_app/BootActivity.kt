@@ -11,7 +11,7 @@ import android.view.ViewGroup
 import android.widget.ImageView
 
 /**
- * One look only (Image 2): full-bleed NYTO glow, CENTER_CROP, 1.5s → video.
+ * One full-bleed NYTO screen for 1.5s → video. No centered logo-box splash.
  */
 class BootActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
@@ -26,7 +26,6 @@ class BootActivity : Activity() {
 
         super.onCreate(savedInstanceState)
 
-        // Same ImageView setup as MainActivity — one visual only.
         val art = ImageView(this).apply {
             setImageResource(R.drawable.nyto_boot_splash)
             scaleType = ImageView.ScaleType.CENTER_CROP

@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Scaffold(
         backgroundColor: NytoColors.brandInk,
-        extendBody: true,
+        extendBody: false,
         body: Stack(
           children: [
             const NytoAmbientField(intense: true),
@@ -201,19 +201,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _TablesTab(
                     loading: _loading,
-                    grouped: _grouped,
+                    tables: _grouped.values.expand((e) => e).toList(),
                     onOpen: _openTable,
-                    onBell: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Notifications coming soon',
-                            style: GoogleFonts.dmSans(),
-                          ),
-                          backgroundColor: NytoColors.surfaceElevated,
-                        ),
-                      );
-                    },
+                    onBell: () {},
                   ),
                   const _PlaceholderTab(
                     title: 'Chat',
@@ -240,204 +230,501 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _TablesTab extends StatelessWidget {
+class _TablesTab extends StatefulWidget {
   const _TablesTab({
     required this.loading,
-    required this.grouped,
+    required this.tables,
     required this.onOpen,
     required this.onBell,
   });
 
   final bool loading;
-  final Map<String, List<UpcomingTable>> grouped;
+  final List<UpcomingTable> tables;
   final ValueChanged<UpcomingTable> onOpen;
   final VoidCallback onBell;
 
   @override
+  State<_TablesTab> createState() => _TablesTabState();
+}
+
+class _TablesTabState extends State<_TablesTab>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _enter;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _enter = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    );
+    _fade = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.04),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic));
+    _enter.forward();
+  }
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 16, 0),
-          child: Row(
-            children: [
-              Text(
-                'Hyderabad',
-                style: GoogleFonts.fraunces(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w500,
-                  color: NytoColors.cream,
-                  letterSpacing: -0.3,
-                ),
+    final tables = widget.tables;
+    final featured = tables.isEmpty ? null : tables.first;
+    final rest =
+        tables.length > 1 ? tables.sublist(1) : const <UpcomingTable>[];
+
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 8, 12, 0),
+              child: Row(
+                children: [
+                  Text(
+                    'Hyderabad',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: NytoColors.cream.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.location_on_rounded,
+                    size: 14,
+                    color: NytoColors.ctaSoft.withValues(alpha: 0.85),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    onPressed: widget.onBell,
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(
+                      Icons.notifications_none_rounded,
+                      size: 22,
+                      color: NytoColors.cream.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 6),
-              Icon(
-                Icons.location_on_rounded,
-                size: 20,
-                color: NytoColors.brandPink.withValues(alpha: 0.95),
-              ),
-              const Spacer(),
-              IconButton(
-                onPressed: onBell,
-                icon: Icon(
-                  Icons.notifications_none_rounded,
-                  color: NytoColors.cream.withValues(alpha: 0.85),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 8),
-          child: Text(
-            'All tables',
-            style: GoogleFonts.dmSans(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: NytoColors.cream,
             ),
-          ),
-        ),
-        Expanded(
-          child: loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: NytoColors.brandPink),
-                )
-              : grouped.isEmpty
-                  ? Center(
-                      child: Text(
-                        'No tables yet — check back soon.',
-                        style: GoogleFonts.dmSans(
-                          color: NytoColors.cream.withValues(alpha: 0.5),
-                        ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
+              child: Text(
+                'What’s alive tonight',
+                style: GoogleFonts.fraunces(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w400,
+                  height: 1.1,
+                  color: NytoColors.cream,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: widget.loading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: NytoColors.brandPink,
                       ),
                     )
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 110),
-                      children: [
-                        for (final entry in grouped.entries) ...[
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10, bottom: 12),
-                            child: Text(
-                              entry.key,
-                              style: GoogleFonts.dmSans(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
-                                color: NytoColors.cream.withValues(alpha: 0.45),
-                              ),
+                  : tables.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No tables yet — check back soon.',
+                            style: GoogleFonts.dmSans(
+                              color: NytoColors.cream.withValues(alpha: 0.5),
                             ),
                           ),
-                          for (final table in entry.value) ...[
-                            _EventRow(
-                              table: table,
-                              onTap: () => onOpen(table),
-                            ),
-                            const SizedBox(height: 12),
-                          ],
-                        ],
-                      ],
-                    ),
+                        )
+                      : Padding(
+                          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (featured != null)
+                                Expanded(
+                                  child: _CinematicNightCard(
+                                    table: featured,
+                                    onTap: () => widget.onOpen(featured),
+                                  ),
+                                ),
+                              if (rest.isNotEmpty) ...[
+                                const SizedBox(height: 18),
+                                Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    'More nights',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: 0.8,
+                                      color: NytoColors.cream
+                                          .withValues(alpha: 0.4),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  height: 148,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: rest.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 10),
+                                    itemBuilder: (context, i) {
+                                      final t = rest[i];
+                                      return _NightRailCard(
+                                        table: t,
+                                        onTap: () => widget.onOpen(t),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-class _EventRow extends StatelessWidget {
-  const _EventRow({required this.table, required this.onTap});
+/// Full-bleed cinematic featured night — atmosphere first, chrome second.
+class _CinematicNightCard extends StatelessWidget {
+  const _CinematicNightCard({required this.table, required this.onTap});
 
   final UpcomingTable table;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final isLunch = table.slot == MealSlot.daytimeLunch;
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
-        child: NytoGlass.panel(
-          borderRadius: 20,
-          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
-          child: Row(
+        borderRadius: BorderRadius.circular(28),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Stack(
+            fit: StackFit.expand,
             children: [
-              Container(
-                width: 48,
-                height: 48,
+              // Atmosphere field
+              DecoratedBox(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(14),
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      NytoColors.ctaDeep.withValues(alpha: 0.85),
-                      NytoColors.cta.withValues(alpha: 0.75),
-                    ],
+                    colors: isLunch
+                        ? [
+                            const Color(0xFF1A2438),
+                            const Color(0xFF0B1220),
+                            const Color(0xFF15100C),
+                          ]
+                        : [
+                            const Color(0xFF101B33),
+                            const Color(0xFF070B14),
+                            const Color(0xFF0C1424),
+                          ],
                   ),
                 ),
-                child: Icon(
-                  table.slot == MealSlot.daytimeLunch
-                      ? Icons.wb_sunny_outlined
-                      : Icons.restaurant_rounded,
-                  color: Colors.white,
-                  size: 22,
+              ),
+              Positioned(
+                top: -40,
+                right: -30,
+                child: Container(
+                  width: 220,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        (isLunch ? NytoColors.orange : NytoColors.cta)
+                            .withValues(alpha: 0.38),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: 14),
-              Expanded(
+              Positioned(
+                bottom: -60,
+                left: -40,
+                child: Container(
+                  width: 260,
+                  height: 260,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        NytoColors.ctaSoft.withValues(alpha: 0.22),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              // Frost edge
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.16),
+                    ),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.10),
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.35),
+                      ],
+                      stops: const [0, 0.45, 1],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 20, 22, 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Row(
+                      children: [
+                        Text(
+                          isLunch ? 'FEATURED DAY' : 'FEATURED NIGHT',
+                          style: GoogleFonts.dmSans(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.6,
+                            color: NytoColors.ctaSoft,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            color: Colors.black.withValues(alpha: 0.35),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.14),
+                            ),
+                          ),
+                          child: Text(
+                            '${table.seatsLeft} seats left',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: NytoColors.cream,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
                     Text(
-                      table.fullDateLabel,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                      table.weekday,
+                      style: GoogleFonts.fraunces(
+                        fontSize: 44,
+                        height: 0.95,
+                        fontWeight: FontWeight.w400,
                         color: NytoColors.cream,
                       ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
+                    Text(
+                      table.dateLabel,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: NytoColors.cream.withValues(alpha: 0.7),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     Text(
                       '${table.mealLabel}  ·  ${table.timeLabel}',
                       style: GoogleFonts.dmSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: NytoColors.cream.withValues(alpha: 0.88),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${table.area} · Hyderabad',
+                      style: GoogleFonts.dmSans(
                         fontSize: 13,
-                        color: NytoColors.cream.withValues(alpha: 0.5),
+                        color: NytoColors.cream.withValues(alpha: 0.45),
                       ),
                     ),
                     if (table.womenOnly) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       Text(
                         'Women-only table',
                         style: GoogleFonts.dmSans(
-                          fontSize: 11.5,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: NytoColors.ctaSoft.withValues(alpha: 0.95),
+                          color: NytoColors.ctaSoft,
                         ),
                       ),
                     ],
+                    const Spacer(),
+                    Row(
+                      children: [
+                        Text(
+                          '₹${table.priceInr}',
+                          style: GoogleFonts.fraunces(
+                            fontSize: 26,
+                            color: NytoColors.cream,
+                          ),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 13,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            gradient: const LinearGradient(
+                              colors: [NytoColors.ctaSoft, NytoColors.cta],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: NytoColors.cta.withValues(alpha: 0.45),
+                                blurRadius: 22,
+                                offset: const Offset(0, 10),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'Reserve',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
-              Container(
-                width: 40,
-                height: 40,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: LinearGradient(
-                    colors: [
-                      NytoColors.ctaSoft,
-                      NytoColors.cta,
-                    ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NightRailCard extends StatelessWidget {
+  const _NightRailCard({required this.table, required this.onTap});
+
+  final UpcomingTable table;
+  final VoidCallback onTap;
+
+  String get _dayShort {
+    final w = table.weekday;
+    if (w.length <= 3) return w.toUpperCase();
+    return w.substring(0, 3).toUpperCase();
+  }
+
+  String get _dayNum {
+    final m = RegExp(r'\d+').firstMatch(table.dateLabel);
+    return m?.group(0) ?? '—';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 148,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: NytoGlass.panel(
+            borderRadius: 20,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      _dayShort,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.1,
+                        color: NytoColors.ctaSoft,
+                      ),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${table.seatsLeft} left',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: NytoColors.cream.withValues(alpha: 0.4),
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  _dayNum,
+                  style: GoogleFonts.fraunces(
+                    fontSize: 28,
+                    height: 1.05,
+                    color: NytoColors.cream,
                   ),
                 ),
-                child: const Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.white,
-                  size: 20,
+                const Spacer(),
+                Text(
+                  '${table.mealLabel} · ${table.timeLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: NytoColors.cream,
+                  ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  table.area,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: NytoColors.cream.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -456,44 +743,56 @@ class _NytoBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+    return ColoredBox(
+      color: NytoColors.ground,
       child: SafeArea(
         top: false,
-        child: NytoGlass(
-          borderRadius: 28,
-          blur: 36,
-          tint: Colors.white.withValues(alpha: 0.14),
-          borderColor: Colors.white.withValues(alpha: 0.24),
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
-          child: Row(
-            children: [
-              _NavItem(
-                icon: Icons.home_rounded,
-                label: 'Home',
-                selected: index == 0,
-                onTap: () => onChanged(0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: 1,
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: NytoGlass(
+                borderRadius: 22,
+                blur: 36,
+                tint: Colors.white.withValues(alpha: 0.12),
+                borderColor: Colors.white.withValues(alpha: 0.2),
+                padding: const EdgeInsets.fromLTRB(6, 8, 6, 8),
+                child: Row(
+                  children: [
+                    _NavItem(
+                      icon: Icons.home_rounded,
+                      label: 'Home',
+                      selected: index == 0,
+                      onTap: () => onChanged(0),
+                    ),
+                    _NavItem(
+                      icon: Icons.chat_bubble_outline_rounded,
+                      label: 'Chat',
+                      selected: index == 1,
+                      onTap: () => onChanged(1),
+                    ),
+                    _NavItem(
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Events',
+                      selected: index == 2,
+                      onTap: () => onChanged(2),
+                    ),
+                    _NavItem(
+                      icon: Icons.person_outline_rounded,
+                      label: 'Profile',
+                      selected: index == 3,
+                      onTap: () => onChanged(3),
+                    ),
+                  ],
+                ),
               ),
-              _NavItem(
-                icon: Icons.chat_bubble_outline_rounded,
-                label: 'Chat',
-                selected: index == 1,
-                onTap: () => onChanged(1),
-              ),
-              _NavItem(
-                icon: Icons.calendar_today_outlined,
-                label: 'Events',
-                selected: index == 2,
-                onTap: () => onChanged(2),
-              ),
-              _NavItem(
-                icon: Icons.person_outline_rounded,
-                label: 'Profile',
-                selected: index == 3,
-                onTap: () => onChanged(3),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

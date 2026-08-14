@@ -79,7 +79,7 @@ class _SocialProofStepState extends State<SocialProofStep>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const OnboardingTitle(
-            'Tables already filling up',
+            'Different tables. Different nights.',
             subtitle: 'Real nights. Real people. Hyderabad first.',
           ),
           const SizedBox(height: 28),

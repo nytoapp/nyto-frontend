@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:nyto_app/core/api/api_client.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/booking/payment_screen.dart';
@@ -27,52 +26,54 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
   bool get _canContinue => _mode != null && !_loading;
 
   Future<void> _continueToPayment() async {
-    if (_mode == null) return;
+    if (_mode == null || _loading) return;
     final seats = _mode == BookingMode.solo ? 1 : _groupSize;
     setState(() {
       _pressed = false;
       _loading = true;
     });
+
+    String bookingId = 'demo-${widget.table.id}-$seats';
+    final seatSubtotal = widget.table.priceInr * seats;
+    final gst = (seatSubtotal * 0.18).round();
+    var total = seatSubtotal + gst;
+    var sub = seatSubtotal;
+    var gstAmt = gst;
+
     try {
-      final res = await bookingsApi.create(
-        tableId: widget.table.id,
-        bookingType: _mode == BookingMode.solo ? 'SOLO' : 'GROUP',
-        seatsBooked: seats,
-      );
-      final booking = res['booking'] as Map<String, dynamic>;
-      final pricing = res['pricing'] as Map<String, dynamic>;
-      if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => PaymentScreen(
-            table: widget.table,
-            seatCount: seats,
-            bookingId: booking['id'] as String,
-            seatSubtotal: pricing['seatSubtotal'] as int,
-            gst: pricing['gst'] as int,
-            total: pricing['total'] as int,
-          ),
-        ),
-      );
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: NytoColors.surface,
-        ),
-      );
+      final res = await bookingsApi
+          .create(
+            tableId: widget.table.id,
+            bookingType: _mode == BookingMode.solo ? 'SOLO' : 'GROUP',
+            seatsBooked: seats,
+          )
+          .timeout(const Duration(seconds: 2));
+      final booking = res['booking'] as Map<String, dynamic>?;
+      final pricing = res['pricing'] as Map<String, dynamic>?;
+      if (booking?['id'] is String) bookingId = booking!['id'] as String;
+      if (pricing != null) {
+        sub = pricing['seatSubtotal'] as int? ?? sub;
+        gstAmt = pricing['gst'] as int? ?? gstAmt;
+        total = pricing['total'] as int? ?? total;
+      }
     } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not create booking. Sign in / start API.'),
-          backgroundColor: NytoColors.surface,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      // Frontend demo: continue with local pricing when API is offline.
     }
+
+    if (!mounted) return;
+    setState(() => _loading = false);
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PaymentScreen(
+          table: widget.table,
+          seatCount: seats,
+          bookingId: bookingId,
+          seatSubtotal: sub,
+          gst: gstAmt,
+          total: total,
+        ),
+      ),
+    );
   }
 
   @override
@@ -203,11 +204,9 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(28, 16, 28, 24),
               child: GestureDetector(
+                onTap: _canContinue ? _continueToPayment : null,
                 onTapDown: _canContinue
                     ? (_) => setState(() => _pressed = true)
-                    : null,
-                onTapUp: _canContinue
-                    ? (_) => _continueToPayment()
                     : null,
                 onTapCancel: _canContinue
                     ? () => setState(() => _pressed = false)
@@ -225,29 +224,38 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                           : NytoColors.ctaDisabled,
                       borderRadius: BorderRadius.circular(28),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Continue to payment',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: NytoColors.cream.withValues(
-                              alpha: _canContinue ? 1 : 0.55,
+                    child: _loading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
                             ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Continue to payment',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: NytoColors.cream.withValues(
+                                    alpha: _canContinue ? 1 : 0.55,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.arrow_forward,
+                                size: 18,
+                                color: NytoColors.cream.withValues(
+                                  alpha: _canContinue ? 1 : 0.55,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.arrow_forward,
-                          size: 18,
-                          color: NytoColors.cream.withValues(
-                            alpha: _canContinue ? 1 : 0.55,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ),

@@ -20,6 +20,27 @@ class InterestsStep extends StatefulWidget {
 }
 
 class _InterestsStepState extends State<InterestsStep> {
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  List<({String id, String label})> get _visibleOptions {
+    final q = _search.text.trim().toLowerCase();
+    final all = [
+      ...OnboardingOptions.interests,
+      ...widget.data.customInterestLabels.entries
+          .map((e) => (id: e.key, label: e.value)),
+    ];
+    if (q.isEmpty) return all;
+    return all
+        .where((item) => item.label.toLowerCase().contains(q))
+        .toList();
+  }
+
   void _toggle(String id) {
     setState(() {
       if (widget.data.interests.contains(id)) {
@@ -33,6 +54,7 @@ class _InterestsStepState extends State<InterestsStep> {
   @override
   Widget build(BuildContext context) {
     final can = widget.data.interests.isNotEmpty;
+    final visible = _visibleOptions;
 
     return OnboardingScaffold(
       step: 7,
@@ -47,15 +69,57 @@ class _InterestsStepState extends State<InterestsStep> {
         children: [
           const OnboardingTitle(
             'What are you into?',
-            subtitle: 'Up to three for now. Deeper matching comes when you book.',
+            subtitle:
+                'Up to three for now. Deeper matching comes when you book.',
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          TextField(
+            controller: _search,
+            textInputAction: TextInputAction.search,
+            onChanged: (_) => setState(() {}),
+            style: GoogleFonts.dmSans(color: NytoColors.cream, fontSize: 15),
+            cursorColor: NytoColors.brandPink,
+            decoration: InputDecoration(
+              hintText: 'Search interests…',
+              hintStyle: GoogleFonts.dmSans(
+                color: NytoColors.cream.withValues(alpha: 0.4),
+                fontSize: 15,
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: NytoColors.cream.withValues(alpha: 0.45),
+              ),
+              suffixIcon: _search.text.isNotEmpty
+                  ? IconButton(
+                      onPressed: () => setState(() => _search.clear()),
+                      icon: Icon(
+                        Icons.close_rounded,
+                        color: NytoColors.cream.withValues(alpha: 0.4),
+                      ),
+                    )
+                  : null,
+              filled: true,
+              fillColor: NytoColors.cream.withValues(alpha: 0.05),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(
+                  color: NytoColors.cream.withValues(alpha: 0.12),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide:
+                    const BorderSide(color: NytoColors.brandPink, width: 1.4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
           Expanded(
             child: SingleChildScrollView(
               child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: OnboardingOptions.interests.map((item) {
+                children: visible.map((item) {
                   final selected = widget.data.interests.contains(item.id);
                   final locked =
                       !selected && widget.data.interests.length >= 3;

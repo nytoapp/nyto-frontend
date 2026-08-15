@@ -5,7 +5,7 @@ import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
-const _kTotal = 8;
+// total from OnboardingData
 
 class GoalsStep extends StatefulWidget {
   const GoalsStep({super.key, required this.data, required this.onContinue});
@@ -34,7 +34,7 @@ class _GoalsStepState extends State<GoalsStep> {
 
     return OnboardingScaffold(
       step: 1,
-      totalSteps: _kTotal,
+      totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',
         enabled: canContinue,

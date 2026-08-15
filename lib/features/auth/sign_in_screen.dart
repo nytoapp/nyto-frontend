@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 
-/// Returning-user entry — phone + OTP (dev code: 000000).
+/// Returning-user entry — email + OTP (dev code: 000000).
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
 
@@ -13,28 +13,34 @@ class SignInScreen extends StatefulWidget {
 }
 
 class _SignInScreenState extends State<SignInScreen> {
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
   final _otpController = TextEditingController();
-  final _phoneFocus = FocusNode();
+  final _emailFocus = FocusNode();
   final _otpFocus = FocusNode();
 
   bool _otpSent = false;
   bool _loading = false;
   String? _error;
 
+  static const _devOtp = '000000';
+
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
     _otpController.dispose();
-    _phoneFocus.dispose();
+    _emailFocus.dispose();
     _otpFocus.dispose();
     super.dispose();
   }
 
+  bool get _emailValid {
+    final e = _emailController.text.trim();
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(e);
+  }
+
   Future<void> _sendOtp() async {
-    final phone = _phoneController.text.trim();
-    if (phone.length < 10) {
-      setState(() => _error = 'Enter a valid 10-digit mobile number.');
+    if (!_emailValid) {
+      setState(() => _error = 'Enter a valid email address.');
       return;
     }
     setState(() {
@@ -52,8 +58,8 @@ class _SignInScreenState extends State<SignInScreen> {
 
   Future<void> _verifyOtp() async {
     final otp = _otpController.text.trim();
-    if (otp != '000000') {
-      setState(() => _error = 'Invalid code. Use 000000 in development.');
+    if (otp != _devOtp) {
+      setState(() => _error = 'Invalid code. Use $_devOtp in development.');
       return;
     }
     setState(() {
@@ -97,43 +103,44 @@ class _SignInScreenState extends State<SignInScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Sign in with the number on your NYTO account.',
+                'Sign in with the email on your NYTO account.',
                 style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  color: NytoColors.creamMuted,
-                  height: 1.45,
+                  fontSize: 15,
+                  height: 1.4,
+                  color: NytoColors.cream.withValues(alpha: 0.55),
                 ),
               ),
               const SizedBox(height: 28),
               Text(
-                'MOBILE',
+                'EMAIL',
                 style: GoogleFonts.dmSans(
                   fontSize: 11,
+                  fontWeight: FontWeight.w700,
                   letterSpacing: 1.2,
-                  fontWeight: FontWeight.w600,
-                  color: NytoColors.creamMuted,
+                  color: NytoColors.cream.withValues(alpha: 0.45),
                 ),
               ),
               const SizedBox(height: 8),
               TextField(
-                controller: _phoneController,
-                focusNode: _phoneFocus,
-                keyboardType: TextInputType.phone,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(10),
-                ],
+                controller: _emailController,
+                focusNode: _emailFocus,
+                enabled: !_otpSent && !_loading,
+                keyboardType: TextInputType.emailAddress,
                 style: GoogleFonts.dmSans(color: NytoColors.cream),
+                cursorColor: NytoColors.ctaSoft,
                 decoration: InputDecoration(
-                  hintText: '10-digit number',
-                  hintStyle: GoogleFonts.dmSans(color: NytoColors.creamMuted),
+                  hintText: 'you@gmail.com',
+                  hintStyle: GoogleFonts.dmSans(
+                    color: NytoColors.cream.withValues(alpha: 0.28),
+                  ),
                   filled: true,
-                  fillColor: NytoColors.surface,
+                  fillColor: NytoColors.cream.withValues(alpha: 0.05),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
                   ),
                 ),
+                onChanged: (_) => setState(() => _error = null),
               ),
               if (_otpSent) ...[
                 const SizedBox(height: 18),
@@ -141,9 +148,9 @@ class _SignInScreenState extends State<SignInScreen> {
                   'OTP',
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
+                    fontWeight: FontWeight.w700,
                     letterSpacing: 1.2,
-                    fontWeight: FontWeight.w600,
-                    color: NytoColors.creamMuted,
+                    color: NytoColors.cream.withValues(alpha: 0.45),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -157,18 +164,31 @@ class _SignInScreenState extends State<SignInScreen> {
                   ],
                   style: GoogleFonts.dmSans(
                     color: NytoColors.cream,
-                    letterSpacing: 6,
+                    letterSpacing: 4,
+                    fontWeight: FontWeight.w600,
                   ),
+                  cursorColor: NytoColors.ctaSoft,
                   decoration: InputDecoration(
-                    hintText: '000000',
-                    hintStyle:
-                        GoogleFonts.dmSans(color: NytoColors.creamMuted),
+                    hintText: '6-digit code',
+                    hintStyle: GoogleFonts.dmSans(
+                      color: NytoColors.cream.withValues(alpha: 0.28),
+                      letterSpacing: 0,
+                    ),
                     filled: true,
-                    fillColor: NytoColors.surface,
+                    fillColor: NytoColors.cream.withValues(alpha: 0.05),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                       borderSide: BorderSide.none,
                     ),
+                  ),
+                  onChanged: (_) => setState(() => _error = null),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Dev OTP: $_devOtp',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: NytoColors.cream.withValues(alpha: 0.4),
                   ),
                 ),
               ],
@@ -177,8 +197,8 @@ class _SignInScreenState extends State<SignInScreen> {
                 Text(
                   _error!,
                   style: GoogleFonts.dmSans(
-                    color: NytoColors.brandPink,
                     fontSize: 13,
+                    color: const Color(0xFFE57373),
                   ),
                 ),
               ],
@@ -186,27 +206,31 @@ class _SignInScreenState extends State<SignInScreen> {
               SizedBox(
                 height: 54,
                 child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: NytoColors.cta,
-                    foregroundColor: NytoColors.cream,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
                   onPressed: _loading
                       ? null
                       : (_otpSent ? _verifyOtp : _sendOtp),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: NytoColors.cta,
+                    disabledBackgroundColor: NytoColors.ctaDisabled,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
                   child: _loading
                       ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
                         )
                       : Text(
                           _otpSent ? 'Sign in' : 'Send code',
                           style: GoogleFonts.dmSans(
-                            fontWeight: FontWeight.w700,
                             fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
                           ),
                         ),
                 ),

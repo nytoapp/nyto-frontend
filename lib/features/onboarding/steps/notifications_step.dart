@@ -53,7 +53,7 @@ class _NotificationsStepState extends State<NotificationsStep>
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       step: 8,
-      totalSteps: 8,
+      totalSteps: OnboardingData.totalSteps,
       footer: Column(
         children: [
           NytoPrimaryButton(

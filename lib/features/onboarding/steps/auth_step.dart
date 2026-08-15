@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
@@ -6,7 +7,7 @@ import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/widgets/google_g_logo.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
-/// Exclusive auth path — pick Google OR email, never both at once.
+/// Exclusive auth path — Google OR email OTP (no password).
 class AuthStep extends StatefulWidget {
   const AuthStep({
     super.key,
@@ -23,65 +24,78 @@ class AuthStep extends StatefulWidget {
 
 class _AuthStepState extends State<AuthStep> {
   late final TextEditingController _email;
-  late final TextEditingController _password;
-  late final TextEditingController _confirm;
-  bool _obscure = true;
-  bool _obscureConfirm = true;
+  late final TextEditingController _otp;
   String? _mode; // null | email | google
+  bool _otpSent = false;
+  bool _sending = false;
+  String? _error;
 
-  static const _total = 8;
+  static const _devOtp = '000000';
 
   @override
   void initState() {
     super.initState();
     _email = TextEditingController(text: widget.data.email);
-    _password = TextEditingController(text: widget.data.password);
-    _confirm = TextEditingController();
+    _otp = TextEditingController();
   }
 
   @override
   void dispose() {
     _email.dispose();
-    _password.dispose();
-    _confirm.dispose();
+    _otp.dispose();
     super.dispose();
   }
 
   bool get _emailValid {
     final e = _email.text.trim();
-    return e.contains('@') && e.contains('.');
+    return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(e);
   }
 
-  bool _passwordStrong(String p) {
-    final hasUpper = p.contains(RegExp(r'[A-Z]'));
-    final hasDigit = p.contains(RegExp(r'[0-9]'));
-    final hasSpecial = p.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-]'));
-    return p.length >= 8 && hasUpper && hasDigit && hasSpecial;
-  }
+  bool get _otpValid => _otp.text.trim().length == 6;
 
   bool get _canContinue {
     if (_mode == 'google') return widget.data.googleAccount != null;
-    if (_mode == 'email') {
-      return _emailValid &&
-          _passwordStrong(_password.text) &&
-          _confirm.text == _password.text &&
-          _confirm.text.isNotEmpty;
-    }
+    if (_mode == 'email') return _otpSent && _otpValid;
     return false;
   }
 
   void _resetMode() {
     setState(() {
       _mode = null;
+      _otpSent = false;
+      _error = null;
+      _otp.clear();
       widget.data.googleAccount = null;
+    });
+  }
+
+  Future<void> _sendOtp() async {
+    if (!_emailValid) {
+      setState(() => _error = 'Enter a valid email address.');
+      return;
+    }
+    setState(() {
+      _sending = true;
+      _error = null;
+    });
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+    setState(() {
+      _sending = false;
+      _otpSent = true;
+      widget.data.email = _email.text.trim();
     });
   }
 
   void _persistAndGo() {
     if (_mode == 'email') {
+      final code = _otp.text.trim();
+      if (code != _devOtp) {
+        setState(() => _error = 'Invalid code. Use $_devOtp in development.');
+        return;
+      }
       widget.data.authMethod = 'email';
       widget.data.email = _email.text.trim();
-      widget.data.password = _password.text;
       widget.data.googleAccount = null;
     } else {
       widget.data.authMethod = 'google';
@@ -184,13 +198,19 @@ class _AuthStepState extends State<AuthStep> {
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       step: 4,
-      totalSteps: _total,
+      totalSteps: OnboardingData.totalSteps,
       footer: _mode == null
           ? null
           : NytoPrimaryButton(
-              label: 'Continue',
-              enabled: _canContinue,
-              onPressed: _canContinue ? _persistAndGo : null,
+              label: _mode == 'email' && !_otpSent
+                  ? (_sending ? 'Sending…' : 'Send code')
+                  : 'Continue',
+              enabled: _mode == 'email' && !_otpSent
+                  ? (_emailValid && !_sending)
+                  : _canContinue,
+              onPressed: _mode == 'email' && !_otpSent
+                  ? (_emailValid && !_sending ? _sendOtp : null)
+                  : (_canContinue ? _persistAndGo : null),
             ),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 320),
@@ -209,19 +229,19 @@ class _AuthStepState extends State<AuthStep> {
                     onChange: _resetMode,
                     onSwitchAccount: _pickGoogle,
                   )
-                : _EmailFormView(
+                : _EmailOtpView(
                     key: const ValueKey('email'),
                     email: _email,
-                    password: _password,
-                    confirm: _confirm,
-                    obscure: _obscure,
-                    obscureConfirm: _obscureConfirm,
-                    onToggleObscure: () => setState(() => _obscure = !_obscure),
-                    onToggleConfirm: () =>
-                        setState(() => _obscureConfirm = !_obscureConfirm),
-                    onChanged: () => setState(() {}),
+                    otp: _otp,
+                    otpSent: _otpSent,
+                    error: _error,
+                    onChanged: () => setState(() => _error = null),
                     onChangeMethod: _resetMode,
-                    passwordOk: _passwordStrong,
+                    onEditEmail: () => setState(() {
+                      _otpSent = false;
+                      _otp.clear();
+                      _error = null;
+                    }),
                   ),
       ),
     );
@@ -383,40 +403,35 @@ class _GoogleConfirmView extends StatelessWidget {
   }
 }
 
-class _EmailFormView extends StatelessWidget {
-  const _EmailFormView({
+class _EmailOtpView extends StatelessWidget {
+  const _EmailOtpView({
     super.key,
     required this.email,
-    required this.password,
-    required this.confirm,
-    required this.obscure,
-    required this.obscureConfirm,
-    required this.onToggleObscure,
-    required this.onToggleConfirm,
+    required this.otp,
+    required this.otpSent,
+    required this.error,
     required this.onChanged,
     required this.onChangeMethod,
-    required this.passwordOk,
+    required this.onEditEmail,
   });
 
   final TextEditingController email;
-  final TextEditingController password;
-  final TextEditingController confirm;
-  final bool obscure;
-  final bool obscureConfirm;
-  final VoidCallback onToggleObscure;
-  final VoidCallback onToggleConfirm;
+  final TextEditingController otp;
+  final bool otpSent;
+  final String? error;
   final VoidCallback onChanged;
   final VoidCallback onChangeMethod;
-  final bool Function(String) passwordOk;
+  final VoidCallback onEditEmail;
 
   @override
   Widget build(BuildContext context) {
-    final match = confirm.text.isNotEmpty && confirm.text == password.text;
     return ListView(
       children: [
-        const OnboardingTitle(
-          'Sign up with email',
-          subtitle: 'Create a password you’ll remember.',
+        OnboardingTitle(
+          otpSent ? 'Check your inbox' : 'Sign up with email',
+          subtitle: otpSent
+              ? 'Enter the 6-digit code we sent to ${email.text.trim()}.'
+              : 'We’ll email you a one-time code — no password.',
         ),
         Align(
           alignment: Alignment.centerLeft,
@@ -441,55 +456,55 @@ class _EmailFormView extends StatelessWidget {
           controller: email,
           label: 'Email',
           keyboardType: TextInputType.emailAddress,
+          enabled: !otpSent,
           onChanged: (_) => onChanged(),
         ),
-        const SizedBox(height: 14),
-        _Field(
-          controller: password,
-          label: 'Password',
-          obscure: obscure,
-          suffix: IconButton(
-            onPressed: onToggleObscure,
-            icon: Icon(
-              obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-              color: NytoColors.cream.withValues(alpha: 0.45),
-              size: 20,
+        if (otpSent) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onEditEmail,
+              child: Text(
+                'Change email',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: NytoColors.ctaSoft,
+                ),
+              ),
             ),
           ),
-          onChanged: (_) => onChanged(),
-        ),
-        const SizedBox(height: 14),
-        _Field(
-          controller: confirm,
-          label: 'Confirm password',
-          obscure: obscureConfirm,
-          suffix: IconButton(
-            onPressed: onToggleConfirm,
-            icon: Icon(
-              obscureConfirm
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
-              color: NytoColors.cream.withValues(alpha: 0.45),
-              size: 20,
+          const SizedBox(height: 8),
+          _Field(
+            controller: otp,
+            label: 'OTP',
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(6),
+            ],
+            onChanged: (_) => onChanged(),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Dev OTP: 000000',
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              color: NytoColors.cream.withValues(alpha: 0.4),
             ),
           ),
-          onChanged: (_) => onChanged(),
-        ),
-        const SizedBox(height: 16),
-        _Rule(ok: password.text.length >= 8, label: 'At least 8 characters'),
-        _Rule(
-          ok: password.text.contains(RegExp(r'[A-Z]')),
-          label: 'One uppercase letter',
-        ),
-        _Rule(
-          ok: password.text.contains(RegExp(r'[0-9]')),
-          label: 'One number',
-        ),
-        _Rule(
-          ok: password.text.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>_\-]')),
-          label: 'One special character',
-        ),
-        _Rule(ok: match, label: 'Passwords match'),
+        ],
+        if (error != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            error!,
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              color: const Color(0xFFE57373),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -543,25 +558,26 @@ class _Field extends StatelessWidget {
   const _Field({
     required this.controller,
     required this.label,
-    this.obscure = false,
     this.keyboardType,
-    this.suffix,
+    this.enabled = true,
+    this.inputFormatters,
     this.onChanged,
   });
 
   final TextEditingController controller;
   final String label;
-  final bool obscure;
   final TextInputType? keyboardType;
-  final Widget? suffix;
+  final bool enabled;
+  final List<TextInputFormatter>? inputFormatters;
   final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      obscureText: obscure,
+      enabled: enabled,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       onChanged: onChanged,
       style: GoogleFonts.dmSans(color: NytoColors.cream, fontSize: 15),
       cursorColor: NytoColors.brandPink,
@@ -572,52 +588,22 @@ class _Field extends StatelessWidget {
         ),
         filled: true,
         fillColor: NytoColors.cream.withValues(alpha: 0.05),
-        suffixIcon: suffix,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide(
             color: NytoColors.cream.withValues(alpha: 0.12),
           ),
         ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(
+            color: NytoColors.cream.withValues(alpha: 0.08),
+          ),
+        ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: NytoColors.brandPink, width: 1.4),
         ),
-      ),
-    );
-  }
-}
-
-class _Rule extends StatelessWidget {
-  const _Rule({required this.ok, required this.label});
-
-  final bool ok;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Icon(
-            ok ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 16,
-            color: ok
-                ? NytoColors.brandPink
-                : NytoColors.cream.withValues(alpha: 0.3),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: GoogleFonts.dmSans(
-              fontSize: 13,
-              color: ok
-                  ? NytoColors.cream.withValues(alpha: 0.8)
-                  : NytoColors.cream.withValues(alpha: 0.4),
-            ),
-          ),
-        ],
       ),
     );
   }

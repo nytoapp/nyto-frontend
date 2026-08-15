@@ -58,7 +58,7 @@ class _InterestsStepState extends State<InterestsStep> {
 
     return OnboardingScaffold(
       step: 7,
-      totalSteps: 8,
+      totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',
         enabled: can,

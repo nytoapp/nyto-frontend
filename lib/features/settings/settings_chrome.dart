@@ -12,12 +12,14 @@ class SettingsPageScaffold extends StatelessWidget {
     required this.child,
     this.footer,
     this.actions,
+    this.showBack = true,
   });
 
   final String title;
   final Widget child;
   final Widget? footer;
   final List<Widget>? actions;
+  final bool showBack;
 
   @override
   Widget build(BuildContext context) {
@@ -41,14 +43,17 @@ class SettingsPageScaffold extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
                     child: Row(
                       children: [
-                        IconButton(
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            size: 18,
-                            color: NytoColors.cream.withValues(alpha: 0.9),
-                          ),
-                        ),
+                        if (showBack)
+                          IconButton(
+                            onPressed: () => Navigator.of(context).maybePop(),
+                            icon: Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 18,
+                              color: NytoColors.cream.withValues(alpha: 0.9),
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 48),
                         Expanded(
                           child: Text(
                             title,

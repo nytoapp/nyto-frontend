@@ -7,6 +7,7 @@ import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/booking/booking_type_screen.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
+import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
 
 enum MealSlot { daytimeLunch, eveningDinner }
@@ -24,6 +25,8 @@ class UpcomingTable {
     this.womenOnly = false,
     this.capacity = 6,
     this.section = 'This week',
+    this.city = 'Hyderabad',
+    this.startsAt,
   });
 
   final String id;
@@ -37,6 +40,8 @@ class UpcomingTable {
   final bool womenOnly;
   final int capacity;
   final String section;
+  final String city;
+  final DateTime? startsAt;
 
   int get seatsLeft => capacity - seatsTaken;
 
@@ -49,6 +54,14 @@ class UpcomingTable {
 
   factory UpcomingTable.fromJson(Map<String, dynamic> json) {
     final slotRaw = json['slot'] as String? ?? 'EVENING_DINNER';
+    final seatsTaken = json['seatsTaken'] as int? ?? 0;
+    final capacity = json['capacity'] as int? ?? 6;
+    final seatsLeft = json['seatsLeft'] as int?;
+    DateTime? startsAt;
+    final rawStarts = json['startsAt'];
+    if (rawStarts is String) {
+      startsAt = DateTime.tryParse(rawStarts)?.toLocal();
+    }
     return UpcomingTable(
       id: json['id'] as String,
       weekday: json['weekday'] as String? ?? '',
@@ -59,15 +72,98 @@ class UpcomingTable {
           ? MealSlot.daytimeLunch
           : MealSlot.eveningDinner,
       area: json['area'] as String? ?? '',
-      seatsTaken: json['seatsTaken'] as int? ?? 0,
+      seatsTaken: seatsLeft != null ? (capacity - seatsLeft) : seatsTaken,
       womenOnly: json['womenOnly'] as bool? ?? false,
-      capacity: json['capacity'] as int? ?? 6,
+      capacity: capacity,
       section: json['section'] as String? ?? 'This week',
+      city: json['city'] as String? ?? 'Hyderabad',
+      startsAt: startsAt,
     );
   }
 }
 
-/// Post-onboarding home — All tables layout (NYTO brand, Hyderabad).
+/// Soft client lanes until backend visibility windows ship (Phase B).
+class _HomeLanes {
+  const _HomeLanes({
+    this.invitation,
+    this.open = const [],
+    this.instant = const [],
+    this.comingUp = const [],
+  });
+
+  final UpcomingTable? invitation;
+  final List<UpcomingTable> open;
+  final List<UpcomingTable> instant;
+  final List<UpcomingTable> comingUp;
+
+  bool get isEmpty =>
+      invitation == null && open.isEmpty && instant.isEmpty && comingUp.isEmpty;
+
+  /// Phase A heuristics:
+  /// - Instant: starts within ~48h (last-minute lane)
+  /// - Open: bookable curated window (~2–5 days out)
+  /// - Coming up: further ahead
+  /// - Invitation: soonest open (or soonest overall)
+  static _HomeLanes from(List<UpcomingTable> tables, {DateTime? now}) {
+    if (tables.isEmpty) return const _HomeLanes();
+    final n = now ?? DateTime.now();
+    final sorted = [...tables]..sort((a, b) {
+        final aT = a.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bT = b.startsAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return aT.compareTo(bT);
+      });
+
+    final instant = <UpcomingTable>[];
+    final open = <UpcomingTable>[];
+    final coming = <UpcomingTable>[];
+
+    for (final t in sorted) {
+      final start = t.startsAt;
+      if (start == null) {
+        open.add(t);
+        continue;
+      }
+      final hours = start.difference(n).inHours;
+      if (hours < 0) continue; // already started
+      if (hours <= 48) {
+        instant.add(t);
+      } else if (hours <= 120) {
+        open.add(t);
+      } else {
+        coming.add(t);
+      }
+    }
+
+    // Keep sections useful with thin seed data.
+    if (open.isEmpty && coming.isNotEmpty) {
+      open.addAll(coming.take(2));
+      coming.removeRange(0, open.length.clamp(0, coming.length));
+    }
+    if (instant.isEmpty && open.length > 2) {
+      instant.add(open.removeLast());
+    }
+    if (open.isEmpty && instant.isNotEmpty) {
+      open.add(instant.removeAt(0));
+    }
+
+    UpcomingTable? invitation;
+    if (open.isNotEmpty) {
+      invitation = open.removeAt(0);
+    } else if (instant.isNotEmpty) {
+      invitation = instant.removeAt(0);
+    } else if (coming.isNotEmpty) {
+      invitation = coming.removeAt(0);
+    }
+
+    return _HomeLanes(
+      invitation: invitation,
+      open: open,
+      instant: instant,
+      comingUp: coming,
+    );
+  }
+}
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -135,42 +231,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    // Show demo instantly so Home never hangs when API is unreachable.
-    setState(() {
-      _tables = _demoTables;
-      _loading = false;
-    });
+    setState(() => _loading = true);
 
     try {
       final rows = await tablesApi
           .list(filter: 'this_week')
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 8));
       if (!mounted) return;
       final parsed = rows.map(UpcomingTable.fromJson).toList();
-      if (parsed.isEmpty) return;
-      setState(() => _tables = parsed);
+      setState(() {
+        _tables = parsed.isNotEmpty ? parsed : _demoTables;
+        _loading = false;
+      });
     } on ApiException catch (_) {
-      // Keep demo tables.
+      if (!mounted) return;
+      setState(() {
+        _tables = _demoTables;
+        _loading = false;
+      });
     } catch (_) {
-      // Timeout / network — keep demo tables.
+      if (!mounted) return;
+      setState(() {
+        _tables = _demoTables;
+        _loading = false;
+      });
     }
-  }
-
-  Map<String, List<UpcomingTable>> get _grouped {
-    final map = <String, List<UpcomingTable>>{};
-    for (final t in _tables) {
-      map.putIfAbsent(t.section, () => []).add(t);
-    }
-    // Stable order
-    const order = ['This week', 'Next week', 'In 2 weeks'];
-    final sorted = <String, List<UpcomingTable>>{};
-    for (final key in order) {
-      if (map.containsKey(key)) sorted[key] = map[key]!;
-    }
-    for (final e in map.entries) {
-      if (!sorted.containsKey(e.key)) sorted[e.key] = e.value;
-    }
-    return sorted;
   }
 
   void _openTable(UpcomingTable table) {
@@ -199,22 +284,19 @@ class _HomeScreenState extends State<HomeScreen> {
               child: IndexedStack(
                 index: _tab,
                 children: [
-                  _TablesTab(
+                  _HomeDiscoverTab(
                     loading: _loading,
-                    tables: _grouped.values.expand((e) => e).toList(),
+                    lanes: _HomeLanes.from(_tables),
                     onOpen: _openTable,
                     onBell: () {},
+                    onRefresh: _load,
                   ),
                   const _PlaceholderTab(
                     title: 'Chat',
                     body: 'Your table chats unlock after you book a seat.',
                     icon: Icons.chat_bubble_outline_rounded,
                   ),
-                  const _PlaceholderTab(
-                    title: 'Events',
-                    body: 'Past nights and upcoming bookings will live here.',
-                    icon: Icons.calendar_today_outlined,
-                  ),
+                  const MyBookingsScreen(embedded: true),
                   const ProfileScreen(),
                 ],
               ),
@@ -230,28 +312,32 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class _TablesTab extends StatefulWidget {
-  const _TablesTab({
+class _HomeDiscoverTab extends StatefulWidget {
+  const _HomeDiscoverTab({
     required this.loading,
-    required this.tables,
+    required this.lanes,
     required this.onOpen,
     required this.onBell,
+    required this.onRefresh,
   });
 
   final bool loading;
-  final List<UpcomingTable> tables;
+  final _HomeLanes lanes;
   final ValueChanged<UpcomingTable> onOpen;
   final VoidCallback onBell;
+  final Future<void> Function() onRefresh;
 
   @override
-  State<_TablesTab> createState() => _TablesTabState();
+  State<_HomeDiscoverTab> createState() => _HomeDiscoverTabState();
 }
 
-class _TablesTabState extends State<_TablesTab>
+class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
     with SingleTickerProviderStateMixin {
   late final AnimationController _enter;
   late final Animation<double> _fade;
   late final Animation<Offset> _slide;
+  final _scroll = ScrollController();
+  final _instantKey = GlobalKey();
 
   @override
   void initState() {
@@ -270,16 +356,34 @@ class _TablesTabState extends State<_TablesTab>
 
   @override
   void dispose() {
+    _scroll.dispose();
     _enter.dispose();
     super.dispose();
   }
 
+  void _jumpToInstant() {
+    final ctx = _instantKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      alignment: 0.08,
+    );
+  }
+
+  String get _city {
+    final lanes = widget.lanes;
+    return lanes.invitation?.city ??
+        (lanes.open.isNotEmpty ? lanes.open.first.city : null) ??
+        (lanes.instant.isNotEmpty ? lanes.instant.first.city : null) ??
+        'Hyderabad';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tables = widget.tables;
-    final featured = tables.isEmpty ? null : tables.first;
-    final rest =
-        tables.length > 1 ? tables.sublist(1) : const <UpcomingTable>[];
+    final lanes = widget.lanes;
+    final hasInstant = lanes.instant.isNotEmpty;
 
     return FadeTransition(
       opacity: _fade,
@@ -293,7 +397,7 @@ class _TablesTabState extends State<_TablesTab>
               child: Row(
                 children: [
                   Text(
-                    'Hyderabad',
+                    _city,
                     style: GoogleFonts.dmSans(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -331,7 +435,31 @@ class _TablesTabState extends State<_TablesTab>
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+              child: Text(
+                'One invite. Then the open seats.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 13,
+                  height: 1.35,
+                  color: NytoColors.cream.withValues(alpha: 0.4),
+                ),
+              ),
+            ),
+            if (hasInstant && !widget.loading) ...[
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _InstantShortcut(
+                    count: lanes.instant.length,
+                    onTap: _jumpToInstant,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
             Expanded(
               child: widget.loading
                   ? const Center(
@@ -339,57 +467,116 @@ class _TablesTabState extends State<_TablesTab>
                         color: NytoColors.brandPink,
                       ),
                     )
-                  : tables.isEmpty
-                      ? Center(
-                          child: Text(
-                            'No tables yet — check back soon.',
-                            style: GoogleFonts.dmSans(
-                              color: NytoColors.cream.withValues(alpha: 0.5),
-                            ),
-                          ),
-                        )
-                      : Padding(
-                          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  : lanes.isEmpty
+                      ? _HomeEmptyState(onRefresh: widget.onRefresh)
+                      : RefreshIndicator(
+                          color: NytoColors.cta,
+                          backgroundColor: NytoColors.surfaceElevated,
+                          onRefresh: widget.onRefresh,
+                          child: ListView(
+                            controller: _scroll,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
                             children: [
-                              if (featured != null)
-                                Expanded(
-                                  child: _CinematicNightCard(
-                                    table: featured,
-                                    onTap: () => widget.onOpen(featured),
-                                  ),
-                                ),
-                              if (rest.isNotEmpty) ...[
-                                const SizedBox(height: 18),
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 4),
-                                  child: Text(
-                                    'More nights',
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.8,
-                                      color: NytoColors.cream
-                                          .withValues(alpha: 0.4),
-                                    ),
-                                  ),
+                              if (lanes.invitation != null) ...[
+                                const _SectionLabel(
+                                  eyebrow: 'THE INVITE',
+                                  title: 'Tonight’s invitation',
                                 ),
                                 const SizedBox(height: 10),
                                 SizedBox(
-                                  height: 148,
-                                  child: ListView.separated(
-                                    scrollDirection: Axis.horizontal,
-                                    itemCount: rest.length,
-                                    separatorBuilder: (_, __) =>
-                                        const SizedBox(width: 10),
-                                    itemBuilder: (context, i) {
-                                      final t = rest[i];
-                                      return _NightRailCard(
-                                        table: t,
-                                        onTap: () => widget.onOpen(t),
-                                      );
-                                    },
+                                  height: 300,
+                                  child: _InvitationCard(
+                                    table: lanes.invitation!,
+                                    onTap: () =>
+                                        widget.onOpen(lanes.invitation!),
+                                  ),
+                                ),
+                                const SizedBox(height: 26),
+                              ],
+                              if (hasInstant) ...[
+                                KeyedSubtree(
+                                  key: _instantKey,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const _SectionLabel(
+                                        eyebrow: 'INSTANT',
+                                        title: 'Going soon',
+                                        subtitle:
+                                            'Last-minute seats — book fast.',
+                                        accent: NytoColors.orange,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 168,
+                                        child: ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: lanes.instant.length,
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(width: 10),
+                                          itemBuilder: (context, i) {
+                                            final t = lanes.instant[i];
+                                            return _InstantRailCard(
+                                              table: t,
+                                              onTap: () => widget.onOpen(t),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 26),
+                              ],
+                              if (lanes.open.isNotEmpty) ...[
+                                const _SectionLabel(
+                                  eyebrow: 'OPEN',
+                                  title: 'Bookable now',
+                                  subtitle: 'Until 2 hours before the night.',
+                                ),
+                                const SizedBox(height: 10),
+                                for (final t in lanes.open) ...[
+                                  _OpenTableRow(
+                                    table: t,
+                                    onTap: () => widget.onOpen(t),
+                                  ),
+                                  const SizedBox(height: 8),
+                                ],
+                                const SizedBox(height: 22),
+                              ],
+                              if (lanes.comingUp.isNotEmpty) ...[
+                                Opacity(
+                                  opacity: 0.72,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const _SectionLabel(
+                                        eyebrow: 'LATER',
+                                        title: 'Coming up',
+                                        subtitle:
+                                            'Opens when the next drop hits.',
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 128,
+                                        child: ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: lanes.comingUp.length,
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(width: 10),
+                                          itemBuilder: (context, i) {
+                                            final t = lanes.comingUp[i];
+                                            return _ComingUpRailCard(
+                                              table: t,
+                                              onTap: () => widget.onOpen(t),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -404,9 +591,197 @@ class _TablesTabState extends State<_TablesTab>
   }
 }
 
-/// Full-bleed cinematic featured night — atmosphere first, chrome second.
-class _CinematicNightCard extends StatelessWidget {
-  const _CinematicNightCard({required this.table, required this.onTap});
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({
+    required this.eyebrow,
+    required this.title,
+    this.subtitle,
+    this.accent,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String? subtitle;
+  final Color? accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = accent ?? NytoColors.ctaSoft;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          eyebrow,
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.5,
+            color: a,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          title,
+          style: GoogleFonts.fraunces(
+            fontSize: 22,
+            height: 1.15,
+            color: NytoColors.cream,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle!,
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              height: 1.35,
+              color: NytoColors.cream.withValues(alpha: 0.4),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _InstantShortcut extends StatelessWidget {
+  const _InstantShortcut({
+    required this.count,
+    required this.onTap,
+  });
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: NytoColors.orange.withValues(alpha: 0.55),
+            ),
+            gradient: LinearGradient(
+              colors: [
+                NytoColors.orange.withValues(alpha: 0.28),
+                NytoColors.orange.withValues(alpha: 0.12),
+              ],
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 9, 12, 9),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.bolt_rounded,
+                  size: 16,
+                  color: NytoColors.orange,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Instant',
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: NytoColors.cream,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: Colors.black.withValues(alpha: 0.28),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: NytoColors.cream.withValues(alpha: 0.85),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: NytoColors.cream.withValues(alpha: 0.65),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeEmptyState extends StatelessWidget {
+  const _HomeEmptyState({required this.onRefresh});
+
+  final Future<void> Function() onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.event_seat_outlined,
+              size: 36,
+              color: NytoColors.ctaSoft.withValues(alpha: 0.7),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No tables open yet',
+              style: GoogleFonts.fraunces(
+                fontSize: 22,
+                color: NytoColors.cream,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'When the next drop goes live, your invite lands here.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                height: 1.4,
+                color: NytoColors.cream.withValues(alpha: 0.45),
+              ),
+            ),
+            const SizedBox(height: 18),
+            TextButton(
+              onPressed: () => onRefresh(),
+              child: Text(
+                'Refresh',
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700,
+                  color: NytoColors.ctaSoft,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InvitationCard extends StatelessWidget {
+  const _InvitationCard({required this.table, required this.onTap});
 
   final UpcomingTable table;
   final VoidCallback onTap;
@@ -425,22 +800,21 @@ class _CinematicNightCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Atmosphere field
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: isLunch
-                        ? [
-                            const Color(0xFF1A2438),
-                            const Color(0xFF0B1220),
-                            const Color(0xFF15100C),
+                        ? const [
+                            Color(0xFF1A2438),
+                            Color(0xFF0B1220),
+                            Color(0xFF15100C),
                           ]
-                        : [
-                            const Color(0xFF101B33),
-                            const Color(0xFF070B14),
-                            const Color(0xFF0C1424),
+                        : const [
+                            Color(0xFF101B33),
+                            Color(0xFF070B14),
+                            Color(0xFF0C1424),
                           ],
                   ),
                 ),
@@ -480,7 +854,6 @@ class _CinematicNightCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Frost edge
               Positioned.fill(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
@@ -509,7 +882,7 @@ class _CinematicNightCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          isLunch ? 'FEATURED DAY' : 'FEATURED NIGHT',
+                          isLunch ? 'LUNCH INVITE' : 'NIGHT INVITE',
                           style: GoogleFonts.dmSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -545,7 +918,7 @@ class _CinematicNightCard extends StatelessWidget {
                     Text(
                       table.weekday,
                       style: GoogleFonts.fraunces(
-                        fontSize: 44,
+                        fontSize: 42,
                         height: 0.95,
                         fontWeight: FontWeight.w400,
                         color: NytoColors.cream,
@@ -560,7 +933,7 @@ class _CinematicNightCard extends StatelessWidget {
                         color: NytoColors.cream.withValues(alpha: 0.7),
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     Text(
                       '${table.mealLabel}  ·  ${table.timeLabel}',
                       style: GoogleFonts.dmSans(
@@ -571,7 +944,7 @@ class _CinematicNightCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${table.area} · Hyderabad',
+                      '${table.area} · ${table.city}',
                       style: GoogleFonts.dmSans(
                         fontSize: 13,
                         color: NytoColors.cream.withValues(alpha: 0.45),
@@ -639,47 +1012,151 @@ class _CinematicNightCard extends StatelessWidget {
   }
 }
 
-class _NightRailCard extends StatelessWidget {
-  const _NightRailCard({required this.table, required this.onTap});
+class _OpenTableRow extends StatelessWidget {
+  const _OpenTableRow({required this.table, required this.onTap});
 
   final UpcomingTable table;
   final VoidCallback onTap;
 
-  String get _dayShort {
-    final w = table.weekday;
-    if (w.length <= 3) return w.toUpperCase();
-    return w.substring(0, 3).toUpperCase();
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: NytoGlass.panel(
+          borderRadius: 18,
+          padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${table.weekday} · ${table.dateLabel}',
+                      style: GoogleFonts.fraunces(
+                        fontSize: 18,
+                        color: NytoColors.cream,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${table.mealLabel} · ${table.timeLabel}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: NytoColors.cream.withValues(alpha: 0.78),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${table.area} · ${table.city}',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 12,
+                        color: NytoColors.cream.withValues(alpha: 0.42),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '₹${table.priceInr}',
+                    style: GoogleFonts.fraunces(
+                      fontSize: 18,
+                      color: NytoColors.cream,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${table.seatsLeft} left',
+                    style: GoogleFonts.dmSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: NytoColors.ctaSoft,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: NytoColors.cream.withValues(alpha: 0.35),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
+}
 
-  String get _dayNum {
-    final m = RegExp(r'\d+').firstMatch(table.dateLabel);
-    return m?.group(0) ?? '—';
-  }
+class _InstantRailCard extends StatelessWidget {
+  const _InstantRailCard({required this.table, required this.onTap});
+
+  final UpcomingTable table;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 148,
+      width: 178,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
-          child: NytoGlass.panel(
-            borderRadius: 20,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: NytoColors.orange.withValues(alpha: 0.5),
+                width: 1.2,
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  NytoColors.orange.withValues(alpha: 0.28),
+                  const Color(0xFF1A120C),
+                  NytoColors.surfaceElevated,
+                ],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: NytoColors.orange.withValues(alpha: 0.22),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(
-                      _dayShort,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.1,
-                        color: NytoColors.ctaSoft,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: NytoColors.orange.withValues(alpha: 0.22),
+                      ),
+                      child: Text(
+                        'INSTANT',
+                        style: GoogleFonts.dmSans(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.1,
+                          color: NytoColors.orange,
+                        ),
                       ),
                     ),
                     const Spacer(),
@@ -687,17 +1164,19 @@ class _NightRailCard extends StatelessWidget {
                       '${table.seatsLeft} left',
                       style: GoogleFonts.dmSans(
                         fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: NytoColors.cream.withValues(alpha: 0.4),
+                        fontWeight: FontWeight.w700,
+                        color: NytoColors.cream.withValues(alpha: 0.55),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
                 Text(
-                  _dayNum,
+                  '${table.weekday} ${table.dateLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.fraunces(
-                    fontSize: 28,
-                    height: 1.05,
+                    fontSize: 18,
                     color: NytoColors.cream,
                   ),
                 ),
@@ -719,8 +1198,90 @@ class _NightRailCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
+                    color: NytoColors.cream.withValues(alpha: 0.5),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '₹${table.priceInr}',
+                  style: GoogleFonts.fraunces(
+                    fontSize: 16,
+                    color: NytoColors.cream,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ComingUpRailCard extends StatelessWidget {
+  const _ComingUpRailCard({required this.table, required this.onTap});
+
+  final UpcomingTable table;
+  final VoidCallback onTap;
+
+  String get _dayShort {
+    final w = table.weekday;
+    if (w.length <= 3) return w.toUpperCase();
+    return w.substring(0, 3).toUpperCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 148,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: NytoGlass.panel(
+            borderRadius: 20,
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _dayShort,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                    color: NytoColors.cream.withValues(alpha: 0.4),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  table.dateLabel,
+                  style: GoogleFonts.fraunces(
+                    fontSize: 20,
+                    height: 1.05,
+                    color: NytoColors.cream.withValues(alpha: 0.85),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${table.mealLabel} · ${table.timeLabel}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: NytoColors.cream.withValues(alpha: 0.55),
+                    color: NytoColors.cream.withValues(alpha: 0.7),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  table.area,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    color: NytoColors.cream.withValues(alpha: 0.4),
                   ),
                 ),
               ],
@@ -777,8 +1338,8 @@ class _NytoBottomNav extends StatelessWidget {
                       onTap: () => onChanged(1),
                     ),
                     _NavItem(
-                      icon: Icons.calendar_today_outlined,
-                      label: 'Events',
+                      icon: Icons.event_seat_outlined,
+                      label: 'Bookings',
                       selected: index == 2,
                       onTap: () => onChanged(2),
                     ),

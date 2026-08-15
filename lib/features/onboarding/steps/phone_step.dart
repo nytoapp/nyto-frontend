@@ -138,7 +138,7 @@ class _PhoneStepState extends State<PhoneStep> {
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       step: 6,
-      totalSteps: 8,
+      totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',
         enabled: _ok,

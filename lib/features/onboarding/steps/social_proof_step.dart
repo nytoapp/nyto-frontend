@@ -22,7 +22,7 @@ class SocialProofStep extends StatefulWidget {
 
 class _SocialProofStepState extends State<SocialProofStep>
     with SingleTickerProviderStateMixin {
-  static const _total = 8;
+  static const _total = OnboardingData.totalSteps;
   late final AnimationController _motion;
   int _index = 0;
   Timer? _holdTimer;

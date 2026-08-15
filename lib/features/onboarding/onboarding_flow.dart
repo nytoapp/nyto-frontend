@@ -10,6 +10,8 @@ import 'package:nyto_app/features/onboarding/steps/notifications_step.dart';
 import 'package:nyto_app/features/onboarding/steps/phone_step.dart';
 import 'package:nyto_app/features/onboarding/steps/social_proof_step.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
+import 'package:nyto_app/features/verification/digilocker_step.dart';
+import 'package:nyto_app/features/verification/selfie_step.dart';
 
 /// Short Get started path → Home (Hyderabad v1).
 class OnboardingFlow extends StatefulWidget {
@@ -58,7 +60,15 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       );
 
   void _toNotifications() => _open(
-        NotificationsStep(data: _data, onFinish: _finish),
+        NotificationsStep(data: _data, onFinish: _toDigilocker),
+      );
+
+  void _toDigilocker() => _open(
+        DigilockerStep(data: _data, onContinue: _toSelfie),
+      );
+
+  void _toSelfie() => _open(
+        SelfieStep(data: _data, onContinue: _finish),
       );
 
   @override

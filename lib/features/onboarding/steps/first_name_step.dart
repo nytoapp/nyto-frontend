@@ -44,7 +44,7 @@ class _FirstNameStepState extends State<FirstNameStep> {
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       step: 5,
-      totalSteps: 8,
+      totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',
         enabled: _ok,

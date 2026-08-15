@@ -52,7 +52,7 @@ class _GenderStepState extends State<GenderStep> {
 
     return OnboardingScaffold(
       step: 3,
-      totalSteps: 8,
+      totalSteps: OnboardingData.totalSteps,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

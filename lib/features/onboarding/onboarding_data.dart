@@ -1,11 +1,12 @@
 /// Shared onboarding state for the short Get started → home path.
 class OnboardingData {
+  static const totalSteps = 10;
+
   final Set<String> goals = {};
   String? gender;
   String authMethod = 'email'; // email | google
   String? googleAccount;
   String email = '';
-  String password = '';
   String firstName = '';
   String phone = '';
   String countryDial = '+91';
@@ -14,6 +15,8 @@ class OnboardingData {
   /// Custom interests added via search (id → display label). AI later.
   final Map<String, String> customInterestLabels = {};
   bool notificationsEnabled = false;
+  bool digilockerLinked = false;
+  bool selfieCaptured = false;
 }
 
 class CountryDial {

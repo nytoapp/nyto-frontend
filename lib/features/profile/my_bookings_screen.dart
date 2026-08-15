@@ -6,7 +6,13 @@ import 'package:nyto_app/features/settings/settings_chrome.dart';
 
 /// Your reserved nights — UI placeholder until bookings API is wired.
 class MyBookingsScreen extends StatelessWidget {
-  const MyBookingsScreen({super.key});
+  const MyBookingsScreen({
+    super.key,
+    this.embedded = false,
+  });
+
+  /// When true (bottom-nav Bookings tab): no back chrome.
+  final bool embedded;
 
   static const _demo = <({
     String day,
@@ -33,29 +39,41 @@ class MyBookingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SettingsPageScaffold(
-      title: 'My Bookings',
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-        children: [
-          Text(
-            'Your nights\nahead.',
-            style: GoogleFonts.fraunces(
-              fontSize: 28,
-              height: 1.15,
-              color: NytoColors.cream,
-            ),
+    final body = ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+      children: [
+        Text(
+          'Your nights\nahead.',
+          style: GoogleFonts.fraunces(
+            fontSize: 28,
+            height: 1.15,
+            color: NytoColors.cream,
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Seats you’ve reserved — separate from open tables on Home.',
-            style: GoogleFonts.dmSans(
-              fontSize: 14,
-              height: 1.4,
-              color: NytoColors.cream.withValues(alpha: 0.48),
-            ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Seats you’ve reserved — separate from open tables on Home.',
+          style: GoogleFonts.dmSans(
+            fontSize: 14,
+            height: 1.4,
+            color: NytoColors.cream.withValues(alpha: 0.48),
           ),
-          const SizedBox(height: 22),
+        ),
+        const SizedBox(height: 22),
+        if (_demo.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 48),
+            child: Text(
+              'No nights booked yet.\nReserve a seat from Home.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                height: 1.45,
+                color: NytoColors.cream.withValues(alpha: 0.45),
+              ),
+            ),
+          )
+        else
           for (final b in _demo) ...[
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -129,8 +147,33 @@ class MyBookingsScreen extends StatelessWidget {
               ),
             ),
           ],
+      ],
+    );
+
+    if (embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+            child: Text(
+              'Bookings',
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.6,
+                color: NytoColors.cream.withValues(alpha: 0.45),
+              ),
+            ),
+          ),
+          Expanded(child: body),
         ],
-      ),
+      );
+    }
+
+    return SettingsPageScaffold(
+      title: 'My Bookings',
+      child: body,
     );
   }
 }

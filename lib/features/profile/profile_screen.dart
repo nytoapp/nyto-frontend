@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
-import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/settings/city_settings_screen.dart';
 import 'package:nyto_app/features/settings/help_center_screen.dart';
 import 'package:nyto_app/features/settings/language_settings_screen.dart';
@@ -11,7 +10,7 @@ import 'package:nyto_app/features/settings/notification_preferences_screen.dart'
 import 'package:nyto_app/features/settings/rate_app_sheet.dart';
 import 'package:nyto_app/features/settings/settings_chrome.dart';
 
-/// Profile — stats + bookings + account/preferences/resources on one scroll.
+/// Profile — stats + account / preferences / resources.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -227,39 +226,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 22),
-              const SettingsSectionLabel('Bookings'),
-              SettingsGlassGroup(
-                children: [
-                  SettingsNavRow(
-                    icon: Icons.event_note_outlined,
-                    label: 'My Bookings',
-                    subtitle: 'Upcoming nights',
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: NytoColors.cta,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        '2',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    onTap: () => openSettingsPage(
-                      context,
-                      const MyBookingsScreen(),
-                    ),
-                  ),
-                ],
               ),
               const SizedBox(height: 22),
               const SettingsSectionLabel('Account'),

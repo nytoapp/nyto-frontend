@@ -13,6 +13,7 @@ import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/verification/digilocker_step.dart';
 import 'package:nyto_app/features/verification/selfie_step.dart';
 import 'package:nyto_app/core/kyc/kyc_session.dart';
+import 'package:nyto_app/features/table/table_chat_screen.dart';
 
 enum MealSlot { daytimeLunch, eveningDinner }
 
@@ -31,6 +32,9 @@ class UpcomingTable {
     this.section = 'This week',
     this.city = 'Hyderabad',
     this.startsAt,
+    this.menSeated = 0,
+    this.womenSeated = 0,
+    this.nonBinarySeated = 0,
   });
 
   final String id;
@@ -46,8 +50,26 @@ class UpcomingTable {
   final String section;
   final String city;
   final DateTime? startsAt;
+  /// Anonymous seated mix (prefer-not-to-say is never shown publicly).
+  final int menSeated;
+  final int womenSeated;
+  final int nonBinarySeated;
 
   int get seatsLeft => capacity - seatsTaken;
+
+  /// Quiet label: `2W · 1M · 1NB · 3 open`
+  String get seatMixLabel {
+    final parts = <String>[];
+    if (womenOnly) {
+      if (womenSeated > 0) parts.add('${womenSeated}W');
+    } else {
+      if (womenSeated > 0) parts.add('${womenSeated}W');
+      if (menSeated > 0) parts.add('${menSeated}M');
+      if (nonBinarySeated > 0) parts.add('${nonBinarySeated}NB');
+    }
+    parts.add('$seatsLeft open');
+    return parts.join(' · ');
+  }
 
   String get mealLabel => switch (slot) {
         MealSlot.daytimeLunch => 'Lunch',
@@ -61,10 +83,22 @@ class UpcomingTable {
     final seatsTaken = json['seatsTaken'] as int? ?? 0;
     final capacity = json['capacity'] as int? ?? 6;
     final seatsLeft = json['seatsLeft'] as int?;
+    final taken = seatsLeft != null ? (capacity - seatsLeft) : seatsTaken;
     DateTime? startsAt;
     final rawStarts = json['startsAt'];
     if (rawStarts is String) {
       startsAt = DateTime.tryParse(rawStarts)?.toLocal();
+    }
+    final womenOnly = json['womenOnly'] as bool? ?? false;
+    // Backend mix when present; else soft preview from seatsTaken.
+    var men = json['menSeated'] as int?;
+    var women = json['womenSeated'] as int?;
+    var nb = json['nonBinarySeated'] as int?;
+    if (men == null && women == null && nb == null) {
+      final preview = _previewMix(taken: taken, womenOnly: womenOnly);
+      men = preview.$1;
+      women = preview.$2;
+      nb = preview.$3;
     }
     return UpcomingTable(
       id: json['id'] as String,
@@ -76,13 +110,32 @@ class UpcomingTable {
           ? MealSlot.daytimeLunch
           : MealSlot.eveningDinner,
       area: json['area'] as String? ?? '',
-      seatsTaken: seatsLeft != null ? (capacity - seatsLeft) : seatsTaken,
-      womenOnly: json['womenOnly'] as bool? ?? false,
+      seatsTaken: taken,
+      womenOnly: womenOnly,
       capacity: capacity,
       section: json['section'] as String? ?? 'This week',
       city: json['city'] as String? ?? 'Hyderabad',
       startsAt: startsAt,
+      menSeated: men ?? 0,
+      womenSeated: women ?? 0,
+      nonBinarySeated: nb ?? 0,
     );
+  }
+
+  /// Deterministic UI preview until booking genders ship from API.
+  static (int, int, int) _previewMix({
+    required int taken,
+    required bool womenOnly,
+  }) {
+    if (taken <= 0) return (0, 0, 0);
+    if (womenOnly) return (0, taken, 0);
+    // Spread taken seats: prefer W/M, occasional NB when 4+.
+    if (taken == 1) return (0, 1, 0);
+    if (taken == 2) return (1, 1, 0);
+    if (taken == 3) return (1, 2, 0);
+    if (taken == 4) return (2, 1, 1);
+    if (taken == 5) return (2, 2, 1);
+    return (2, 3, 1);
   }
 }
 
@@ -190,6 +243,8 @@ class _HomeScreenState extends State<HomeScreen> {
       slot: MealSlot.eveningDinner,
       area: 'Jubilee Hills',
       seatsTaken: 3,
+      menSeated: 1,
+      womenSeated: 2,
       section: 'This week',
     ),
     UpcomingTable(
@@ -201,6 +256,8 @@ class _HomeScreenState extends State<HomeScreen> {
       slot: MealSlot.daytimeLunch,
       area: 'Banjara Hills',
       seatsTaken: 2,
+      menSeated: 1,
+      womenSeated: 1,
       section: 'This week',
     ),
     UpcomingTable(
@@ -212,6 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
       slot: MealSlot.eveningDinner,
       area: 'Gachibowli',
       seatsTaken: 4,
+      womenSeated: 4,
       womenOnly: true,
       section: 'Next week',
     ),
@@ -224,6 +282,7 @@ class _HomeScreenState extends State<HomeScreen> {
       slot: MealSlot.eveningDinner,
       area: 'Madhapur',
       seatsTaken: 1,
+      nonBinarySeated: 1,
       section: 'In 2 weeks',
     ),
   ];
@@ -324,11 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onBell: () {},
                     onRefresh: _load,
                   ),
-                  const _PlaceholderTab(
-                    title: 'Chat',
-                    body: 'Your table chats unlock after you book a seat.',
-                    icon: Icons.chat_bubble_outline_rounded,
-                  ),
+                  const _ChatListTab(),
                   const MyBookingsScreen(embedded: true),
                   const ProfileScreen(),
                 ],
@@ -813,6 +868,34 @@ class _HomeEmptyState extends StatelessWidget {
   }
 }
 
+class _SeatMixBadge extends StatelessWidget {
+  const _SeatMixBadge({required this.table});
+
+  final UpcomingTable table;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: Colors.black.withValues(alpha: 0.35),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.14),
+        ),
+      ),
+      child: Text(
+        table.seatMixLabel,
+        style: GoogleFonts.dmSans(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: NytoColors.cream,
+        ),
+      ),
+    );
+  }
+}
+
 class _InvitationCard extends StatelessWidget {
   const _InvitationCard({required this.table, required this.onTap});
 
@@ -924,27 +1007,7 @@ class _InvitationCard extends StatelessWidget {
                           ),
                         ),
                         const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            color: Colors.black.withValues(alpha: 0.35),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.14),
-                            ),
-                          ),
-                          child: Text(
-                            '${table.seatsLeft} seats left',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: NytoColors.cream,
-                            ),
-                          ),
-                        ),
+                        _SeatMixBadge(table: table),
                       ],
                     ),
                     const Spacer(),
@@ -1106,7 +1169,10 @@ class _OpenTableRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${table.seatsLeft} left',
+                    table.seatMixLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
                     style: GoogleFonts.dmSans(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -1194,7 +1260,7 @@ class _InstantRailCard extends StatelessWidget {
                     ),
                     const Spacer(),
                     Text(
-                      '${table.seatsLeft} left',
+                      table.seatMixLabel,
                       style: GoogleFonts.dmSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -1441,6 +1507,206 @@ class _NavItem extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Chat tab — lists booked table chats. Demo data until backend.
+class _ChatListTab extends StatelessWidget {
+  const _ChatListTab();
+
+  static const _demoChats = [
+    (
+      venue: 'Jubilee Hills',
+      day: 'Friday',
+      time: '8:00 PM',
+      lastMsg: 'Hey everyone! Excited for this one.',
+      joined: 3,
+      capacity: 6,
+    ),
+    (
+      venue: 'Gachibowli',
+      day: 'Wednesday',
+      time: '8:00 PM',
+      lastMsg: 'Say hi to your table',
+      joined: 1,
+      capacity: 6,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
+          child: Text(
+            'Chats',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+              color: NytoColors.cream.withValues(alpha: 0.45),
+            ),
+          ),
+        ),
+        Expanded(
+          child: _demoChats.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.chat_bubble_outline_rounded,
+                            size: 40,
+                            color: NytoColors.cta.withValues(alpha: 0.85)),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Chat',
+                          style: GoogleFonts.fraunces(
+                            fontSize: 26,
+                            color: NytoColors.cream,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your table chats unlock after you book a seat.',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            color: NytoColors.cream.withValues(alpha: 0.45),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                  itemCount: _demoChats.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final c = _demoChats[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => TableChatScreen(
+                                venueName: c.venue,
+                                dayLabel: c.day,
+                                timeLabel: c.time,
+                              ),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: NytoColors.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color:
+                                  NytoColors.cream.withValues(alpha: 0.08),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 48,
+                                height: 48,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color:
+                                      NytoColors.cta.withValues(alpha: 0.18),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.chat_bubble_outline_rounded,
+                                  size: 22,
+                                  color: NytoColors.ctaSoft,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            c.venue,
+                                            style: GoogleFonts.dmSans(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w600,
+                                              color: NytoColors.cream,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: NytoColors.cta
+                                                .withValues(alpha: 0.15),
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            '${c.joined}/${c.capacity}',
+                                            style: GoogleFonts.dmSans(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: NytoColors.ctaSoft,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${c.day} · ${c.time}',
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 12,
+                                        color: NytoColors.cream
+                                            .withValues(alpha: 0.45),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      c.lastMsg,
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 13,
+                                        color: NytoColors.cream
+                                            .withValues(alpha: 0.5),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

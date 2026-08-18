@@ -45,6 +45,60 @@ class _DigilockerStepState extends State<DigilockerStep> {
     });
   }
 
+  void _showNoDigilockerHelp() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: NytoColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "Don't have DigiLocker?",
+                style: GoogleFonts.fraunces(
+                  fontSize: 22,
+                  color: NytoColors.cream,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'You don’t need the DigiLocker app installed. A free DigiLocker account works in the browser at digilocker.gov.in.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: NytoColors.cream.withValues(alpha: 0.72),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'If you still can’t use it, we’ll add another verify path later (PAN / partner KYC). For now DigiLocker is the main check.',
+                style: GoogleFonts.dmSans(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: NytoColors.cream.withValues(alpha: 0.72),
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: NytoPrimaryButton(
+                  label: 'Got it',
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
@@ -107,6 +161,19 @@ class _DigilockerStepState extends State<DigilockerStep> {
               ],
             ),
           ),
+          if (!_linked) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _showNoDigilockerHelp,
+              child: Text(
+                "Don't have DigiLocker?",
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w600,
+                  color: NytoColors.ctaSoft,
+                ),
+              ),
+            ),
+          ],
           if (_linked) ...[
             const SizedBox(height: 20),
             NytoGlass.panel(

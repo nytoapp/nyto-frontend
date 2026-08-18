@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -30,6 +32,8 @@ class _SelfieStepState extends State<SelfieStep> {
   String? _error;
   bool _captured = false;
   bool _saving = false;
+  bool _isFront = true;
+  XFile? _photo;
 
   @override
   void initState() {
@@ -66,6 +70,7 @@ class _SelfieStepState extends State<SelfieStep> {
       }
       setState(() {
         _controller = controller;
+        _isFront = cam.lensDirection == CameraLensDirection.front;
         _initializing = false;
       });
     } catch (e) {
@@ -82,9 +87,13 @@ class _SelfieStepState extends State<SelfieStep> {
     if (c == null || !c.value.isInitialized || _saving) return;
     setState(() => _saving = true);
     try {
-      await c.takePicture();
+      final file = await c.takePicture();
+      try {
+        await c.pausePreview();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
+        _photo = file;
         _captured = true;
         _saving = false;
         widget.data.selfieCaptured = true;
@@ -103,10 +112,25 @@ class _SelfieStepState extends State<SelfieStep> {
     widget.onContinue();
   }
 
+  Future<void> _retake() async {
+    final c = _controller;
+    setState(() {
+      _captured = false;
+      _photo = null;
+      widget.data.selfieCaptured = false;
+    });
+    if (c != null && c.value.isInitialized) {
+      try {
+        await c.resumePreview();
+      } catch (_) {}
+    }
+  }
+
   /// Dev fallback when camera can’t open (emulator / denied).
   Future<void> _mockCapture() async {
     setState(() {
       _captured = true;
+      _photo = null;
       widget.data.selfieCaptured = true;
       _error = null;
     });
@@ -160,6 +184,16 @@ class _SelfieStepState extends State<SelfieStep> {
                           color: NytoColors.ctaSoft,
                         ),
                       )
+                    else if (_photo != null)
+                      Transform.scale(
+                        scaleX: _isFront ? -1 : 1,
+                        child: Image.file(
+                          File(_photo!.path),
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                          height: double.infinity,
+                        ),
+                      )
                     else if (ready)
                       FittedBox(
                         fit: BoxFit.cover,
@@ -182,7 +216,6 @@ class _SelfieStepState extends State<SelfieStep> {
                           ),
                         ),
                       ),
-                    // Face guide oval
                     if (!_captured)
                       IgnorePointer(
                         child: CustomPaint(
@@ -190,27 +223,41 @@ class _SelfieStepState extends State<SelfieStep> {
                         ),
                       ),
                     if (_captured)
-                      Container(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        alignment: Alignment.center,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.check_circle_rounded,
-                              color: NytoColors.ctaSoft,
-                              size: 48,
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              'Selfie captured',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: NytoColors.cream,
+                      Positioned(
+                        left: 16,
+                        right: 16,
+                        bottom: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: NytoColors.ctaSoft,
+                                size: 22,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _photo != null
+                                      ? 'This is your selfie. Retake if it’s not clear.'
+                                      : 'Demo selfie saved. Finish to continue.',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: NytoColors.cream,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                   ],
@@ -236,7 +283,7 @@ class _SelfieStepState extends State<SelfieStep> {
           if (_captured) ...[
             const SizedBox(height: 12),
             TextButton(
-              onPressed: () => setState(() => _captured = false),
+              onPressed: _retake,
               child: Text(
                 'Retake',
                 style: GoogleFonts.dmSans(

@@ -5,6 +5,8 @@ class AuthApi {
 
   final ApiClient _api;
 
+  static const timeout = Duration(seconds: 10);
+
   Future<Map<String, dynamic>> register({
     required String fullName,
     required String dateOfBirth,
@@ -37,7 +39,39 @@ class AuthApi {
     return json;
   }
 
-  Future<Map<String, dynamic>> me() => _api.get('/auth/me', auth: true);
+  Future<Map<String, dynamic>> requestEmailOtp(String email) {
+    return _api
+        .post('/auth/email/otp/request', body: {'email': email})
+        .timeout(timeout);
+  }
+
+  Future<Map<String, dynamic>> verifyEmailOtp({
+    required String email,
+    required String code,
+  }) async {
+    final json = await _api
+        .post('/auth/email/otp/verify', body: {'email': email, 'code': code})
+        .timeout(timeout);
+    final token = json['token'] as String?;
+    if (token != null) await _api.saveToken(token);
+    return json;
+  }
+
+  Future<Map<String, dynamic>> googleSignIn(String idToken) async {
+    final json = await _api
+        .post('/auth/google', body: {'idToken': idToken})
+        .timeout(timeout);
+    final token = json['token'] as String?;
+    if (token != null) await _api.saveToken(token);
+    return json;
+  }
+
+  Future<Map<String, dynamic>> me() =>
+      _api.get('/auth/me', auth: true).timeout(timeout);
+
+  Future<Map<String, dynamic>> updateMe(Map<String, dynamic> body) {
+    return _api.patch('/auth/me', auth: true, body: body).timeout(timeout);
+  }
 }
 
 class TablesApi {

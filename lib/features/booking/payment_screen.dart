@@ -3,8 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
+import 'package:nyto_app/core/config/app_env.dart';
+import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/booking_confirmed_screen.dart';
-import 'package:nyto_app/features/home/home_screen.dart';
 
 enum PayMethod { upi, card }
 
@@ -97,7 +98,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
             .timeout(const Duration(seconds: 2));
       }
     } catch (_) {
-      // Demo / offline — continue UX path.
+      if (!AppEnv.allowDemoCheckout) {
+        if (!mounted) return;
+        setState(() => _paying = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment failed. Try again.'),
+            backgroundColor: NytoColors.surface,
+          ),
+        );
+        return;
+      }
     }
 
     // Simulate processing delay

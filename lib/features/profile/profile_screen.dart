@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/app/session.dart';
+import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/features/auth/welcome_screen.dart';
 import 'package:nyto_app/features/settings/city_settings_screen.dart';
 import 'package:nyto_app/features/settings/help_center_screen.dart';
 import 'package:nyto_app/features/settings/language_settings_screen.dart';
@@ -21,6 +24,44 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String _city = 'Hyderabad, India';
   String _language = 'English';
+  String _displayName = 'NYTO';
+  String _initial = 'N';
+  bool _loggingOut = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMe();
+  }
+
+  Future<void> _loadMe() async {
+    try {
+      final json = await authApi.me();
+      final user = json['user'];
+      if (user is! Map) return;
+      final first = (user['firstName'] as String?)?.trim();
+      final full = (user['fullName'] as String?)?.trim();
+      final name = (first != null && first.isNotEmpty)
+          ? first
+          : (full != null && full.isNotEmpty ? full : null);
+      if (!mounted || name == null) return;
+      setState(() {
+        _displayName = name;
+        _initial = name[0].toUpperCase();
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _logOut() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    await NytoSession.signOut();
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const WelcomeScreen()),
+      (_) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: Text(
-                      'A',
+                      _initial,
                       style: GoogleFonts.fraunces(
                         fontSize: 32,
                         color: NytoColors.cream,
@@ -82,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           children: [
                             Flexible(
                               child: Text(
-                                'Aanya Mehta',
+                                _displayName,
                                 style: GoogleFonts.fraunces(
                                   fontSize: 26,
                                   fontWeight: FontWeight.w400,
@@ -339,14 +380,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Sign out — auth wiring later.'),
-                          backgroundColor: NytoColors.surface,
-                        ),
-                      );
-                    },
+                    onTap: _loggingOut ? null : _logOut,
                     borderRadius: BorderRadius.circular(999),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 16),

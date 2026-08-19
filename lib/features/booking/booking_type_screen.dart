@@ -3,8 +3,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/core/config/app_env.dart';
+import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/invite_friends_screen.dart';
-import 'package:nyto_app/features/home/home_screen.dart';
 
 /// Book your own seat — friends join via invite link and pay themselves.
 class BookingTypeScreen extends StatefulWidget {
@@ -53,7 +54,18 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
         total = pricing['total'] as int? ?? total;
       }
     } catch (_) {
-      // Demo path when API is offline.
+      if (!AppEnv.allowDemoCheckout) {
+        if (!mounted) return;
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not create booking. Try again.'),
+            backgroundColor: NytoColors.surface,
+          ),
+        );
+        return;
+      }
+      // Debug: continue with a local booking id when API is offline.
     }
 
     if (!mounted) return;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
+import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/booking_detail_screen.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 

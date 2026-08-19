@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/app/session.dart';
+import 'package:nyto_app/core/api/api_client.dart';
+import 'package:nyto_app/core/api/nyto_api.dart';
+import 'package:nyto_app/core/auth/google_auth.dart';
+import 'package:nyto_app/core/config/app_env.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
@@ -28,9 +33,10 @@ class _AuthStepState extends State<AuthStep> {
   String? _mode; // null | email | google
   bool _otpSent = false;
   bool _sending = false;
+  bool _verifying = false;
+  bool _googleBusy = false;
+  String? _devOtpHint;
   String? _error;
-
-  static const _devOtp = '000000';
 
   @override
   void initState() {
@@ -54,6 +60,7 @@ class _AuthStepState extends State<AuthStep> {
   bool get _otpValid => _otp.text.trim().length == 6;
 
   bool get _canContinue {
+    if (_verifying) return false;
     if (_mode == 'google') return widget.data.googleAccount != null;
     if (_mode == 'email') return _otpSent && _otpValid;
     return false;
@@ -63,11 +70,18 @@ class _AuthStepState extends State<AuthStep> {
     setState(() {
       _mode = null;
       _otpSent = false;
+      _sending = false;
+      _verifying = false;
+      _googleBusy = false;
+      _devOtpHint = null;
       _error = null;
       _otp.clear();
       widget.data.googleAccount = null;
     });
   }
+
+  String _reachError() =>
+      'Could not reach NYTO. Is the server running? On a phone, run adb reverse tcp:3000 tcp:3000.';
 
   Future<void> _sendOtp() async {
     if (!_emailValid) {
@@ -77,119 +91,131 @@ class _AuthStepState extends State<AuthStep> {
     setState(() {
       _sending = true;
       _error = null;
+      _devOtpHint = null;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
-    setState(() {
-      _sending = false;
-      _otpSent = true;
-      widget.data.email = _email.text.trim();
-    });
-  }
-
-  void _persistAndGo() {
-    if (_mode == 'email') {
-      final code = _otp.text.trim();
-      if (code != _devOtp) {
-        setState(() => _error = 'Invalid code. Use $_devOtp in development.');
+    final email = _email.text.trim();
+    try {
+      final json = await authApi.requestEmailOtp(email);
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _otpSent = true;
+        widget.data.email = email;
+        final hint = json['devOtp'] as String?;
+        if (AppEnv.allowDevOtp && hint != null && hint.isNotEmpty) {
+          _devOtpHint = hint;
+        }
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _sending = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      if (AppEnv.allowDevOtp) {
+        setState(() {
+          _sending = false;
+          _otpSent = true;
+          widget.data.email = email;
+          _devOtpHint = AppEnv.devOtp;
+        });
         return;
       }
-      widget.data.authMethod = 'email';
-      widget.data.email = _email.text.trim();
-      widget.data.googleAccount = null;
-    } else {
-      widget.data.authMethod = 'google';
-      widget.data.email = widget.data.googleAccount ?? '';
+      setState(() {
+        _sending = false;
+        _error = _reachError();
+      });
     }
+  }
+
+  Future<void> _persistAndGo() async {
+    if (_mode == 'email') {
+      final code = _otp.text.trim();
+      final email = _email.text.trim();
+      setState(() {
+        _verifying = true;
+        _error = null;
+      });
+      try {
+        await authApi.verifyEmailOtp(email: email, code: code);
+      } on ApiException catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _verifying = false;
+          _error = e.message;
+        });
+        return;
+      } catch (_) {
+        if (AppEnv.allowDevOtp && code == AppEnv.devOtp) {
+          await NytoSession.markSignedIn();
+        } else {
+          if (!mounted) return;
+          setState(() {
+            _verifying = false;
+            _error = _reachError();
+          });
+          return;
+        }
+      }
+      if (!mounted) return;
+      widget.data.authMethod = 'email';
+      widget.data.email = email;
+      widget.data.googleAccount = null;
+      setState(() => _verifying = false);
+      widget.onContinue();
+      return;
+    }
+
+    widget.data.authMethod = 'google';
+    widget.data.email = widget.data.googleAccount ?? '';
     widget.onContinue();
   }
 
-  Future<void> _pickGoogle() async {
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.72),
-      builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF14101A),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: NytoColors.cream.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Choose a Google account',
-                    style: GoogleFonts.fraunces(
-                      fontSize: 22,
-                      color: NytoColors.cream,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Preview picker — real Google Sign-In comes later.',
-                    style: GoogleFonts.dmSans(
-                      fontSize: 13,
-                      color: NytoColors.cream.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ...OnboardingOptions.mockGoogleAccounts.map((a) {
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
-                        backgroundColor:
-                            NytoColors.brandViolet.withValues(alpha: 0.35),
-                        child: Text(
-                          a.name[0],
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      title: Text(
-                        a.name,
-                        style: GoogleFonts.dmSans(
-                          color: NytoColors.cream,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      subtitle: Text(
-                        a.email,
-                        style: GoogleFonts.dmSans(
-                          color: NytoColors.cream.withValues(alpha: 0.5),
-                          fontSize: 13,
-                        ),
-                      ),
-                      onTap: () => Navigator.pop(ctx, a.email),
-                    );
-                  }),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-    if (!mounted) return;
-    if (picked != null) {
+  Future<void> _pickGoogle({bool switchAccount = false}) async {
+    if (_googleBusy) return;
+    setState(() {
+      _googleBusy = true;
+      _error = null;
+    });
+    try {
+      final google = await NytoGoogleAuth.signIn(switchAccount: switchAccount);
+      if (!mounted) return;
+      if (google == null) {
+        setState(() => _googleBusy = false);
+        return;
+      }
+      final json = await authApi.googleSignIn(google.idToken);
+      if (!mounted) return;
+      final user = json['user'];
+      final email = user is Map && user['email'] is String
+          ? user['email'] as String
+          : google.email;
       setState(() {
+        _googleBusy = false;
         _mode = 'google';
-        widget.data.googleAccount = picked;
+        widget.data.googleAccount = email;
+        widget.data.email = email;
+        widget.data.authMethod = 'google';
+      });
+    } on GoogleAuthException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _googleBusy = false;
+        _error = e.message;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _googleBusy = false;
+        _error = e.message;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _googleBusy = false;
+        _error = _reachError();
       });
     }
   }
@@ -204,7 +230,7 @@ class _AuthStepState extends State<AuthStep> {
           : NytoPrimaryButton(
               label: _mode == 'email' && !_otpSent
                   ? (_sending ? 'Sending…' : 'Send code')
-                  : 'Continue',
+                  : (_verifying ? 'Verifying…' : 'Continue'),
               enabled: _mode == 'email' && !_otpSent
                   ? (_emailValid && !_sending)
                   : _canContinue,
@@ -221,13 +247,15 @@ class _AuthStepState extends State<AuthStep> {
                 key: const ValueKey('choice'),
                 onGoogle: _pickGoogle,
                 onEmail: () => setState(() => _mode = 'email'),
+                googleBusy: _googleBusy,
+                error: _error,
               )
             : _mode == 'google'
                 ? _GoogleConfirmView(
                     key: const ValueKey('google'),
                     email: widget.data.googleAccount!,
                     onChange: _resetMode,
-                    onSwitchAccount: _pickGoogle,
+                    onSwitchAccount: () => _pickGoogle(switchAccount: true),
                   )
                 : _EmailOtpView(
                     key: const ValueKey('email'),
@@ -235,12 +263,14 @@ class _AuthStepState extends State<AuthStep> {
                     otp: _otp,
                     otpSent: _otpSent,
                     error: _error,
+                    devOtpHint: _devOtpHint,
                     onChanged: () => setState(() => _error = null),
                     onChangeMethod: _resetMode,
                     onEditEmail: () => setState(() {
                       _otpSent = false;
                       _otp.clear();
                       _error = null;
+                      _devOtpHint = null;
                     }),
                   ),
       ),
@@ -253,10 +283,14 @@ class _ChoiceView extends StatelessWidget {
     super.key,
     required this.onGoogle,
     required this.onEmail,
+    required this.googleBusy,
+    this.error,
   });
 
   final VoidCallback onGoogle;
   final VoidCallback onEmail;
+  final bool googleBusy;
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
@@ -268,9 +302,18 @@ class _ChoiceView extends StatelessWidget {
         ),
         const SizedBox(height: 36),
         _BigAuthButton(
-          label: 'Continue with Google',
-          leading: const GoogleGLogo(size: 22),
-          onTap: onGoogle,
+          label: googleBusy ? 'Opening Google…' : 'Continue with Google',
+          leading: googleBusy
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: NytoColors.cream,
+                  ),
+                )
+              : const GoogleGLogo(size: 22),
+          onTap: googleBusy ? null : onGoogle,
         ),
         const SizedBox(height: 14),
         Row(
@@ -300,8 +343,18 @@ class _ChoiceView extends StatelessWidget {
             color: NytoColors.cream,
             size: 22,
           ),
-          onTap: onEmail,
+          onTap: googleBusy ? null : onEmail,
         ),
+        if (error != null) ...[
+          const SizedBox(height: 16),
+          Text(
+            error!,
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              color: const Color(0xFFE57373),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -410,6 +463,7 @@ class _EmailOtpView extends StatelessWidget {
     required this.otp,
     required this.otpSent,
     required this.error,
+    required this.devOtpHint,
     required this.onChanged,
     required this.onChangeMethod,
     required this.onEditEmail,
@@ -419,6 +473,7 @@ class _EmailOtpView extends StatelessWidget {
   final TextEditingController otp;
   final bool otpSent;
   final String? error;
+  final String? devOtpHint;
   final VoidCallback onChanged;
   final VoidCallback onChangeMethod;
   final VoidCallback onEditEmail;
@@ -486,14 +541,16 @@ class _EmailOtpView extends StatelessWidget {
             ],
             onChanged: (_) => onChanged(),
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Dev OTP: 000000',
-            style: GoogleFonts.dmSans(
-              fontSize: 12,
-              color: NytoColors.cream.withValues(alpha: 0.4),
+          if (AppEnv.allowDevOtp && (devOtpHint ?? AppEnv.devOtp).isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Dev OTP: ${devOtpHint ?? AppEnv.devOtp}',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: NytoColors.cream.withValues(alpha: 0.4),
+              ),
             ),
-          ),
+          ],
         ],
         if (error != null) ...[
           const SizedBox(height: 12),
@@ -519,7 +576,7 @@ class _BigAuthButton extends StatelessWidget {
 
   final String label;
   final Widget leading;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {

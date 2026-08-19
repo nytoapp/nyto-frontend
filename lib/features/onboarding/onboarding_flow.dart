@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:nyto_app/app/session.dart';
+import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/steps/auth_step.dart';
@@ -28,7 +30,18 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     Navigator.of(context).push(onboardingRoute(page));
   }
 
-  void _finish() {
+  Future<void> _syncProfile() async {
+    final body = _data.toProfilePatch();
+    if (body.isEmpty) return;
+    try {
+      await authApi.updateMe(body);
+    } catch (_) {}
+  }
+
+  Future<void> _finish() async {
+    await _syncProfile();
+    await NytoSession.markSignedIn();
+    if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       onboardingRoute(const HomeScreen()),
       (route) => false,
@@ -63,9 +76,10 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
         NotificationsStep(data: _data, onFinish: _toDigilocker),
       );
 
-  void _toDigilocker() => _open(
-        DigilockerStep(data: _data, onContinue: _toSelfie),
-      );
+  void _toDigilocker() {
+    _syncProfile();
+    _open(DigilockerStep(data: _data, onContinue: _toSelfie));
+  }
 
   void _toSelfie() => _open(
         SelfieStep(data: _data, onContinue: _finish),

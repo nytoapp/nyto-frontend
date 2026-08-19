@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/table/table_chat_screen.dart';
 
@@ -160,7 +161,7 @@ class BookingDetailScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          '${table.city}',
+                          table.city,
                           style: GoogleFonts.dmSans(
                             fontSize: 14,
                             color: NytoColors.creamMuted,

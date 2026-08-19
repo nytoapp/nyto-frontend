@@ -17,6 +17,21 @@ class OnboardingData {
   bool notificationsEnabled = false;
   bool digilockerLinked = false;
   bool selfieCaptured = false;
+
+  Map<String, dynamic> toProfilePatch() {
+    final body = <String, dynamic>{};
+    final name = firstName.trim();
+    if (name.isNotEmpty) body['firstName'] = name;
+    if (gender != null && gender!.isNotEmpty) body['gender'] = gender;
+    if (interests.isNotEmpty) body['interests'] = interests.toList();
+
+    final local = phone.replaceAll(RegExp(r'\D'), '');
+    final dial = countryDial.replaceAll(RegExp(r'\D'), '');
+    if (local.length >= 8) {
+      body['phone'] = '$dial$local';
+    }
+    return body;
+  }
 }
 
 class CountryDial {
@@ -122,12 +137,6 @@ class OnboardingOptions {
       city: 'Hyderabad',
       quote: 'The matching is quiet but spot on.',
     ),
-  ];
-
-  static const mockGoogleAccounts = <({String name, String email})>[
-    (name: 'You', email: 'you@gmail.com'),
-    (name: 'Work', email: 'you@company.com'),
-    (name: 'Personal', email: 'hello.nyto@gmail.com'),
   ];
 
   static const countries = <CountryDial>[

@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/payment_screen.dart';
-import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
 /// Share table invite — friends open link, join same table, pay their own seat.

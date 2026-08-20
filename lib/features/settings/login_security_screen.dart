@@ -19,8 +19,9 @@ class LoginSecurityScreen extends StatefulWidget {
 class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
   String? _email;
   String? _phone;
-  String _signIn = '…';
+  String? _provider;
   bool _loading = true;
+  bool _loggingOut = false;
   bool _deleting = false;
 
   @override
@@ -29,17 +30,60 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
     _load();
   }
 
-  String _signInLabel(String? provider) {
-    switch (provider) {
+  String get _methodLabel {
+    switch (_provider) {
       case 'GOOGLE':
         return 'Google';
       case 'EMAIL':
-        return 'Email OTP';
+        return 'Email';
       case 'PHONE':
-        return 'Phone OTP';
+        return 'Phone';
       default:
-        return 'NYTO account';
+        return 'NYTO';
     }
+  }
+
+  String get _methodDetail {
+    switch (_provider) {
+      case 'GOOGLE':
+        return 'You sign in with your Google account.';
+      case 'EMAIL':
+        return 'You sign in with a one-time code sent to your email.';
+      case 'PHONE':
+        return 'You sign in with a one-time code sent to your phone.';
+      default:
+        return 'NYTO uses Google or an email code. There is no password.';
+    }
+  }
+
+  IconData get _methodIcon {
+    switch (_provider) {
+      case 'GOOGLE':
+        return Icons.g_mobiledata_rounded;
+      case 'EMAIL':
+        return Icons.mail_outline_rounded;
+      case 'PHONE':
+        return Icons.sms_outlined;
+      default:
+        return Icons.lock_outline_rounded;
+    }
+  }
+
+  String _formatPhone(String raw) {
+    final digits = raw.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 12 && digits.startsWith('91')) {
+      return '+91 ${digits.substring(2, 7)} ${digits.substring(7)}';
+    }
+    if (digits.length == 10) {
+      return '+91 ${digits.substring(0, 5)} ${digits.substring(5)}';
+    }
+    if (digits.length > 10 && digits.startsWith('91')) {
+      final local = digits.substring(2);
+      if (local.length == 10) {
+        return '+91 ${local.substring(0, 5)} ${local.substring(5)}';
+      }
+    }
+    return raw.startsWith('+') ? raw : '+$digits';
   }
 
   Future<void> _load() async {
@@ -50,16 +94,25 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
       setState(() {
         _email = user['email'] as String?;
         _phone = user['phone'] as String?;
-        _signIn = _signInLabel(user['authProvider'] as String?);
+        _provider = user['authProvider'] as String?;
         _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _signIn = 'Could not load account';
-        _loading = false;
-      });
+      setState(() => _loading = false);
     }
+  }
+
+  Future<void> _logOut() async {
+    if (_loggingOut) return;
+    setState(() => _loggingOut = true);
+    await NytoGoogleAuth.signOut();
+    await NytoSession.signOut();
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const WelcomeScreen()),
+      (_) => false,
+    );
   }
 
   Future<void> _confirmDelete() async {
@@ -104,13 +157,20 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final email = (_email != null && _email!.trim().isNotEmpty)
+        ? _email!.trim()
+        : null;
+    final phone = (_phone != null && _phone!.trim().isNotEmpty)
+        ? _formatPhone(_phone!.trim())
+        : null;
+
     return SettingsPageScaffold(
       title: 'Login & Security',
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
           Text(
-            'Keep your seat\nsecure.',
+            'How you sign in',
             style: GoogleFonts.fraunces(
               fontSize: 26,
               height: 1.15,
@@ -119,7 +179,7 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'NYTO uses Google or an email code. There is no password.',
+            'No password — just Google or an email code.',
             style: GoogleFonts.dmSans(
               fontSize: 14,
               color: NytoColors.cream.withValues(alpha: 0.5),
@@ -128,10 +188,10 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
           const SizedBox(height: 24),
           NytoGlass.panel(
             borderRadius: 18,
-            padding: const EdgeInsets.fromLTRB(18, 6, 18, 6),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
             child: _loading
                 ? const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 28),
+                    padding: EdgeInsets.symmetric(vertical: 20),
                     child: Center(
                       child: SizedBox(
                         width: 22,
@@ -144,38 +204,102 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
                     ),
                   )
                 : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _CredRow(
-                        label: 'Email',
-                        value: (_email != null && _email!.isNotEmpty)
-                            ? _email!
-                            : 'Not set',
+                      Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: NytoColors.cream.withValues(alpha: 0.08),
+                            ),
+                            child: Icon(
+                              _methodIcon,
+                              size: 22,
+                              color: NytoColors.ctaSoft,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Signed in with $_methodLabel',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: NytoColors.cream,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  _methodDetail,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 12,
+                                    height: 1.35,
+                                    color: NytoColors.cream
+                                        .withValues(alpha: 0.45),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      Divider(
-                        height: 1,
-                        color: NytoColors.cream.withValues(alpha: 0.08),
-                      ),
-                      _CredRow(
-                        label: 'Sign in',
-                        value: _signIn,
-                      ),
-                      if (_phone != null && _phone!.isNotEmpty) ...[
+                      if (email != null) ...[
+                        const SizedBox(height: 18),
                         Divider(
                           height: 1,
                           color: NytoColors.cream.withValues(alpha: 0.08),
                         ),
-                        _CredRow(
-                          label: 'Phone',
-                          value: _phone!,
+                        const SizedBox(height: 14),
+                        _InfoLine(
+                          label: 'Email',
+                          value: email,
+                        ),
+                      ],
+                      if (phone != null) ...[
+                        const SizedBox(height: 14),
+                        _InfoLine(
+                          label: 'Phone on your profile',
+                          value: phone,
                         ),
                       ],
                     ],
                   ),
           ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 16),
+          NytoGlass.panel(
+            borderRadius: 999,
+            padding: EdgeInsets.zero,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _loggingOut || _deleting ? null : _logOut,
+                borderRadius: BorderRadius.circular(999),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: Text(
+                      _loggingOut ? 'Signing out…' : 'Log out',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: NytoColors.cream,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 40),
           Center(
             child: TextButton(
-              onPressed: _deleting ? null : _confirmDelete,
+              onPressed: _deleting || _loggingOut ? null : _confirmDelete,
               child: Text(
                 _deleting ? 'Deleting…' : 'Delete my account',
                 style: GoogleFonts.dmSans(
@@ -190,6 +314,42 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _InfoLine extends StatelessWidget {
+  const _InfoLine({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.dmSans(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: NytoColors.cream.withValues(alpha: 0.4),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: GoogleFonts.dmSans(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: NytoColors.cream,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -312,44 +472,6 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _CredRow extends StatelessWidget {
-  const _CredRow({
-    required this.label,
-    required this.value,
-  });
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: GoogleFonts.dmSans(
-              fontSize: 15,
-              fontWeight: FontWeight.w700,
-              color: NytoColors.cream,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: GoogleFonts.dmSans(
-              fontSize: 14,
-              color: NytoColors.cream.withValues(alpha: 0.5),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

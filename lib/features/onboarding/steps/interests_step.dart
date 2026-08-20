@@ -45,7 +45,7 @@ class _InterestsStepState extends State<InterestsStep> {
     setState(() {
       if (widget.data.interests.contains(id)) {
         widget.data.interests.remove(id);
-      } else if (widget.data.interests.length < 3) {
+      } else if (widget.data.interests.length < OnboardingData.maxInterests) {
         widget.data.interests.add(id);
       }
     });
@@ -57,7 +57,7 @@ class _InterestsStepState extends State<InterestsStep> {
     final visible = _visibleOptions;
 
     return OnboardingScaffold(
-      step: 7,
+      step: 9,
       totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',
@@ -70,7 +70,7 @@ class _InterestsStepState extends State<InterestsStep> {
           const OnboardingTitle(
             'What are you into?',
             subtitle:
-                'Up to three for now. Deeper matching comes when you book.',
+                'Pick up to five. Deeper matching comes when you book a table.',
           ),
           const SizedBox(height: 20),
           TextField(
@@ -122,7 +122,9 @@ class _InterestsStepState extends State<InterestsStep> {
                 children: visible.map((item) {
                   final selected = widget.data.interests.contains(item.id);
                   final locked =
-                      !selected && widget.data.interests.length >= 3;
+                      !selected &&
+                      widget.data.interests.length >=
+                          OnboardingData.maxInterests;
                   return _InterestChip(
                     label: item.label,
                     selected: selected,

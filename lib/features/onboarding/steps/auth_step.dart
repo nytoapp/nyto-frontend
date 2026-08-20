@@ -541,10 +541,11 @@ class _EmailOtpView extends StatelessWidget {
             ],
             onChanged: (_) => onChanged(),
           ),
-          if (AppEnv.allowDevOtp && (devOtpHint ?? AppEnv.devOtp).isNotEmpty) ...[
+          if (AppEnv.allowDevOtp &&
+              (devOtpHint?.isNotEmpty ?? false)) ...[
             const SizedBox(height: 10),
             Text(
-              'Dev OTP: ${devOtpHint ?? AppEnv.devOtp}',
+              'Dev OTP: $devOtpHint',
               style: GoogleFonts.dmSans(
                 fontSize: 12,
                 color: NytoColors.cream.withValues(alpha: 0.4),

@@ -72,6 +72,10 @@ class AuthApi {
   Future<Map<String, dynamic>> updateMe(Map<String, dynamic> body) {
     return _api.patch('/auth/me', auth: true, body: body).timeout(timeout);
   }
+
+  Future<Map<String, dynamic>> deleteMe() {
+    return _api.delete('/auth/me', auth: true).timeout(timeout);
+  }
 }
 
 class TablesApi {

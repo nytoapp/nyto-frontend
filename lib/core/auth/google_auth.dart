@@ -76,4 +76,11 @@ class NytoGoogleAuth {
       );
     }
   }
+
+  static Future<void> signOut() async {
+    try {
+      await _ensureReady();
+      await GoogleSignIn.instance.signOut();
+    } catch (_) {}
+  }
 }

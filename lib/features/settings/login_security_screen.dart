@@ -1,27 +1,105 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/app/session.dart';
+import 'package:nyto_app/core/api/api_client.dart';
+import 'package:nyto_app/core/api/nyto_api.dart';
+import 'package:nyto_app/core/auth/google_auth.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/features/auth/welcome_screen.dart';
 import 'package:nyto_app/features/settings/settings_chrome.dart';
 
-class LoginSecurityScreen extends StatelessWidget {
+class LoginSecurityScreen extends StatefulWidget {
   const LoginSecurityScreen({super.key});
 
-  Future<void> _confirmDelete(BuildContext context) async {
+  @override
+  State<LoginSecurityScreen> createState() => _LoginSecurityScreenState();
+}
+
+class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
+  String? _email;
+  String? _phone;
+  String _signIn = '…';
+  bool _loading = true;
+  bool _deleting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  String _signInLabel(String? provider) {
+    switch (provider) {
+      case 'GOOGLE':
+        return 'Google';
+      case 'EMAIL':
+        return 'Email OTP';
+      case 'PHONE':
+        return 'Phone OTP';
+      default:
+        return 'NYTO account';
+    }
+  }
+
+  Future<void> _load() async {
+    try {
+      final json = await authApi.me();
+      final user = json['user'];
+      if (user is! Map || !mounted) return;
+      setState(() {
+        _email = user['email'] as String?;
+        _phone = user['phone'] as String?;
+        _signIn = _signInLabel(user['authProvider'] as String?);
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _signIn = 'Could not load account';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    if (_deleting) return;
     final confirmed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => const _DeleteAccountDialog(),
     );
-    if (confirmed != true || !context.mounted) return;
+    if (confirmed != true || !mounted) return;
 
-    // UI-only — no backend delete yet.
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Account delete confirmed in UI — backend coming later.'),
-        backgroundColor: NytoColors.surface,
-      ),
-    );
+    setState(() => _deleting = true);
+    try {
+      await authApi.deleteMe();
+      await NytoGoogleAuth.signOut();
+      await NytoSession.signOut();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const WelcomeScreen()),
+        (_) => false,
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _deleting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not delete account. Is the server running?'),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+    }
   }
 
   @override
@@ -41,7 +119,7 @@ class LoginSecurityScreen extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Manage how you sign in to NYTO.',
+            'NYTO uses Google or an email code. There is no password.',
             style: GoogleFonts.dmSans(
               fontSize: 14,
               color: NytoColors.cream.withValues(alpha: 0.5),
@@ -51,38 +129,55 @@ class LoginSecurityScreen extends StatelessWidget {
           NytoGlass.panel(
             borderRadius: 18,
             padding: const EdgeInsets.fromLTRB(18, 6, 18, 6),
-            child: Column(
-              children: [
-                const _CredRow(
-                  label: 'Email',
-                  value: 'aanya.mehta@email.com',
-                ),
-                Divider(
-                  height: 1,
-                  color: NytoColors.cream.withValues(alpha: 0.08),
-                ),
-                _CredRow(
-                  label: 'Password',
-                  value: '••••••••',
-                  actionLabel: 'Modify',
-                  onAction: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Password change — coming soon.'),
-                        backgroundColor: NytoColors.surface,
+            child: _loading
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 28),
+                    child: Center(
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: NytoColors.ctaSoft,
+                        ),
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
+                    ),
+                  )
+                : Column(
+                    children: [
+                      _CredRow(
+                        label: 'Email',
+                        value: (_email != null && _email!.isNotEmpty)
+                            ? _email!
+                            : 'Not set',
+                      ),
+                      Divider(
+                        height: 1,
+                        color: NytoColors.cream.withValues(alpha: 0.08),
+                      ),
+                      _CredRow(
+                        label: 'Sign in',
+                        value: _signIn,
+                      ),
+                      if (_phone != null && _phone!.isNotEmpty) ...[
+                        Divider(
+                          height: 1,
+                          color: NytoColors.cream.withValues(alpha: 0.08),
+                        ),
+                        _CredRow(
+                          label: 'Phone',
+                          value: _phone!,
+                        ),
+                      ],
+                    ],
+                  ),
           ),
           const SizedBox(height: 48),
           Center(
             child: TextButton(
-              onPressed: () => _confirmDelete(context),
+              onPressed: _deleting ? null : _confirmDelete,
               child: Text(
-                'Delete my account',
+                _deleting ? 'Deleting…' : 'Delete my account',
                 style: GoogleFonts.dmSans(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -225,59 +320,34 @@ class _CredRow extends StatelessWidget {
   const _CredRow({
     required this.label,
     required this.value,
-    this.actionLabel,
-    this.onAction,
   });
 
   final String label;
   final String value;
-  final String? actionLabel;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: NytoColors.cream,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 14,
-                    color: NytoColors.cream.withValues(alpha: 0.5),
-                  ),
-                ),
-              ],
+          Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: NytoColors.cream,
             ),
           ),
-          if (actionLabel != null)
-            GestureDetector(
-              onTap: onAction,
-              child: Text(
-                actionLabel!,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: NytoColors.ctaSoft,
-                  decoration: TextDecoration.underline,
-                  decorationColor: NytoColors.ctaSoft.withValues(alpha: 0.5),
-                ),
-              ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              color: NytoColors.cream.withValues(alpha: 0.5),
             ),
+          ),
         ],
       ),
     );

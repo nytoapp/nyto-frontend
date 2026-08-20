@@ -24,6 +24,9 @@ class _SignInScreenState extends State<SignInScreen> {
   final _emailFocus = FocusNode();
   final _otpFocus = FocusNode();
 
+  /// null = choose method, 'email' = email OTP only, 'google' = Google only.
+  String? _mode;
+
   bool _otpSent = false;
   bool _loading = false;
   String? _devOtpHint;
@@ -171,15 +174,59 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  void _chooseEmail() {
+    setState(() {
+      _mode = 'email';
+      _otpSent = false;
+      _loading = false;
+      _devOtpHint = null;
+      _error = null;
+      _otpController.clear();
+    });
+    Future.microtask(_emailFocus.requestFocus);
+  }
+
+  Future<void> _chooseGoogle() async {
+    setState(() {
+      _mode = 'google';
+      _otpSent = false;
+      _loading = false;
+      _devOtpHint = null;
+      _error = null;
+      _otpController.clear();
+    });
+    await _googleSignIn();
+  }
+
+  void _onBack() {
+    if (_mode != null) {
+      setState(() {
+        _mode = null;
+        _otpSent = false;
+        _loading = false;
+        _devOtpHint = null;
+        _error = null;
+        _otpController.clear();
+      });
+      return;
+    }
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: _mode == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onBack();
+      },
+      child: Scaffold(
       backgroundColor: NytoColors.bg,
       appBar: AppBar(
         backgroundColor: NytoColors.bg,
         elevation: 0,
         leading: IconButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _onBack,
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           color: NytoColors.cream,
         ),
@@ -213,95 +260,117 @@ class _SignInScreenState extends State<SignInScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
-                    SizedBox(
-                      height: 54,
-                      child: OutlinedButton(
-                        onPressed: _loading || _otpSent ? null : _googleSignIn,
-                        style: OutlinedButton.styleFrom(
-                          side: BorderSide(
-                            color: NytoColors.cream.withValues(alpha: 0.18),
+                    if (_mode == null) ...[
+                      SizedBox(
+                        height: 54,
+                        child: OutlinedButton(
+                          onPressed: _loading ? null : _chooseGoogle,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: NytoColors.cream.withValues(alpha: 0.18),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const GoogleGLogo(size: 20),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Continue with Google',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: NytoColors.cream,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const GoogleGLogo(size: 20),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Continue with Google',
+                      ),
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(
+                              color: NytoColors.cream.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'or',
                               style: GoogleFonts.dmSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: NytoColors.cream,
+                                color: NytoColors.cream.withValues(alpha: 0.4),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Divider(
-                            color: NytoColors.cream.withValues(alpha: 0.12),
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          Expanded(
+                            child: Divider(
+                              color: NytoColors.cream.withValues(alpha: 0.12),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        height: 54,
+                        child: FilledButton(
+                          onPressed: _loading ? null : _chooseEmail,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: NytoColors.cta,
+                            disabledBackgroundColor: NytoColors.ctaDisabled,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
                           child: Text(
-                            'or',
+                            'Continue with email',
                             style: GoogleFonts.dmSans(
-                              color: NytoColors.cream.withValues(alpha: 0.4),
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
                           ),
                         ),
-                        Expanded(
-                          child: Divider(
-                            color: NytoColors.cream.withValues(alpha: 0.12),
+                      ),
+                    ],
+                    if (_mode == 'google') ...[
+                      SizedBox(
+                        height: 54,
+                        child: OutlinedButton(
+                          onPressed: _loading ? null : _googleSignIn,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(
+                              color: NytoColors.cream.withValues(alpha: 0.18),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const GoogleGLogo(size: 20),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Continue with Google',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: NytoColors.cream,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'EMAIL',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                        color: NytoColors.cream.withValues(alpha: 0.45),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: _emailController,
-                      focusNode: _emailFocus,
-                      enabled: !_otpSent && !_loading,
-                      keyboardType: TextInputType.emailAddress,
-                      style: GoogleFonts.dmSans(color: NytoColors.cream),
-                      cursorColor: NytoColors.ctaSoft,
-                      decoration: InputDecoration(
-                        hintText: 'you@gmail.com',
-                        hintStyle: GoogleFonts.dmSans(
-                          color: NytoColors.cream.withValues(alpha: 0.28),
-                        ),
-                        filled: true,
-                        fillColor: NytoColors.cream.withValues(alpha: 0.05),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onChanged: (_) => setState(() => _error = null),
-                    ),
-                    if (_otpSent) ...[
-                      const SizedBox(height: 18),
+                    ],
+                    if (_mode == 'email') ...[
                       Text(
-                        'OTP',
+                        'EMAIL',
                         style: GoogleFonts.dmSans(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -311,24 +380,16 @@ class _SignInScreenState extends State<SignInScreen> {
                       ),
                       const SizedBox(height: 8),
                       TextField(
-                        controller: _otpController,
-                        focusNode: _otpFocus,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                          LengthLimitingTextInputFormatter(6),
-                        ],
-                        style: GoogleFonts.dmSans(
-                          color: NytoColors.cream,
-                          letterSpacing: 4,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        controller: _emailController,
+                        focusNode: _emailFocus,
+                        enabled: !_otpSent && !_loading,
+                        keyboardType: TextInputType.emailAddress,
+                        style: GoogleFonts.dmSans(color: NytoColors.cream),
                         cursorColor: NytoColors.ctaSoft,
                         decoration: InputDecoration(
-                          hintText: '6-digit code',
+                          hintText: 'you@gmail.com',
                           hintStyle: GoogleFonts.dmSans(
                             color: NytoColors.cream.withValues(alpha: 0.28),
-                            letterSpacing: 0,
                           ),
                           filled: true,
                           fillColor: NytoColors.cream.withValues(alpha: 0.05),
@@ -339,15 +400,59 @@ class _SignInScreenState extends State<SignInScreen> {
                         ),
                         onChanged: (_) => setState(() => _error = null),
                       ),
-                      if (AppEnv.allowDevOtp) ...[
-                        const SizedBox(height: 8),
+                      if (_otpSent) ...[
+                        const SizedBox(height: 18),
                         Text(
-                          'Dev OTP: ${_devOtpHint ?? AppEnv.devOtp}',
+                          'OTP',
                           style: GoogleFonts.dmSans(
-                            fontSize: 12,
-                            color: NytoColors.cream.withValues(alpha: 0.4),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.2,
+                            color: NytoColors.cream.withValues(alpha: 0.45),
                           ),
                         ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _otpController,
+                          focusNode: _otpFocus,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            LengthLimitingTextInputFormatter(6),
+                          ],
+                          style: GoogleFonts.dmSans(
+                            color: NytoColors.cream,
+                            letterSpacing: 4,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          cursorColor: NytoColors.ctaSoft,
+                          decoration: InputDecoration(
+                            hintText: '6-digit code',
+                            hintStyle: GoogleFonts.dmSans(
+                              color: NytoColors.cream.withValues(alpha: 0.28),
+                              letterSpacing: 0,
+                            ),
+                            filled: true,
+                            fillColor: NytoColors.cream.withValues(alpha: 0.05),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                          onChanged: (_) => setState(() => _error = null),
+                        ),
+                        if (AppEnv.allowDevOtp &&
+                            _devOtpHint != null &&
+                            _devOtpHint!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            'Dev OTP: $_devOtpHint',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              color: NytoColors.cream.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ],
                       ],
                     ],
                     if (_error != null) ...[
@@ -364,44 +469,46 @@ class _SignInScreenState extends State<SignInScreen> {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: SizedBox(
-                height: 54,
-                child: FilledButton(
-                  onPressed: _loading
-                      ? null
-                      : (_otpSent ? _verifyOtp : _sendOtp),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: NytoColors.cta,
-                    disabledBackgroundColor: NytoColors.ctaDisabled,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(999),
+            if (_mode == 'email')
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                child: SizedBox(
+                  height: 54,
+                  child: FilledButton(
+                    onPressed: _loading
+                        ? null
+                        : (_otpSent ? _verifyOtp : _sendOtp),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: NytoColors.cta,
+                      disabledBackgroundColor: NytoColors.ctaDisabled,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(999),
+                      ),
                     ),
+                    child: _loading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            _otpSent ? 'Sign in' : 'Send code',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          _otpSent ? 'Sign in' : 'Send code',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
                 ),
               ),
-            ),
           ],
         ),
       ),
+    ),
     );
   }
 }

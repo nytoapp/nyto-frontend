@@ -275,7 +275,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   SettingsNavRow(
                     icon: Icons.shield_outlined,
                     label: 'Login & Security',
-                    subtitle: 'Email, OTP, account',
+                    subtitle: 'Email, Google, OTP',
                     onTap: () => openSettingsPage(
                       context,
                       const LoginSecurityScreen(),

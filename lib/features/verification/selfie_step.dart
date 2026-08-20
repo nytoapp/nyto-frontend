@@ -147,7 +147,7 @@ class _SelfieStepState extends State<SelfieStep> {
     final ready = _controller?.value.isInitialized == true;
 
     return OnboardingScaffold(
-      step: 10,
+      step: 14,
       totalSteps: OnboardingData.totalSteps,
       showProgress: !widget.standalone,
       footer: NytoPrimaryButton(

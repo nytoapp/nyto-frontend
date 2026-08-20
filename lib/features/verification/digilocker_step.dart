@@ -102,7 +102,7 @@ class _DigilockerStepState extends State<DigilockerStep> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      step: 9,
+      step: 13,
       totalSteps: OnboardingData.totalSteps,
       showProgress: !widget.standalone,
       footer: NytoPrimaryButton(

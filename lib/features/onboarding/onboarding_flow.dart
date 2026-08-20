@@ -3,7 +3,10 @@ import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
+import 'package:nyto_app/features/onboarding/steps/age_step.dart';
 import 'package:nyto_app/features/onboarding/steps/auth_step.dart';
+import 'package:nyto_app/features/onboarding/steps/curating_step.dart';
+import 'package:nyto_app/features/onboarding/steps/energy_step.dart';
 import 'package:nyto_app/features/onboarding/steps/first_name_step.dart';
 import 'package:nyto_app/features/onboarding/steps/gender_step.dart';
 import 'package:nyto_app/features/onboarding/steps/goals_step.dart';
@@ -11,11 +14,12 @@ import 'package:nyto_app/features/onboarding/steps/interests_step.dart';
 import 'package:nyto_app/features/onboarding/steps/notifications_step.dart';
 import 'package:nyto_app/features/onboarding/steps/phone_step.dart';
 import 'package:nyto_app/features/onboarding/steps/social_proof_step.dart';
+import 'package:nyto_app/features/onboarding/steps/we_know_you_step.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:nyto_app/features/verification/digilocker_step.dart';
 import 'package:nyto_app/features/verification/selfie_step.dart';
 
-/// Short Get started path → Home (Hyderabad v1).
+/// Get started path → matching questions → Home (Hyderabad v1).
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key});
 
@@ -65,12 +69,29 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       );
 
   void _toPhone() => _open(
-        PhoneStep(data: _data, onContinue: _toInterests),
+        PhoneStep(data: _data, onContinue: _toAge),
+      );
+
+  void _toAge() => _open(
+        AgeStep(data: _data, onContinue: _toEnergy),
+      );
+
+  void _toEnergy() => _open(
+        EnergyStep(data: _data, onContinue: _toInterests),
       );
 
   void _toInterests() => _open(
-        InterestsStep(data: _data, onContinue: _toNotifications),
+        InterestsStep(data: _data, onContinue: _toCurating),
       );
+
+  void _toCurating() => _open(
+        CuratingStep(data: _data, onContinue: _toWeKnowYou),
+      );
+
+  void _toWeKnowYou() {
+    _syncProfile();
+    _open(WeKnowYouStep(data: _data, onContinue: _toNotifications));
+  }
 
   void _toNotifications() => _open(
         NotificationsStep(data: _data, onFinish: _toDigilocker),

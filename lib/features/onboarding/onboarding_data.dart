@@ -1,6 +1,10 @@
 /// Shared onboarding state for the short Get started → home path.
 class OnboardingData {
-  static const totalSteps = 10;
+  /// Goals → … → selfie (includes age, energy, curating, we-know-you).
+  static const totalSteps = 14;
+
+  /// Max interests at signup; deeper topics come at booking.
+  static const maxInterests = 5;
 
   final Set<String> goals = {};
   String? gender;
@@ -11,6 +15,10 @@ class OnboardingData {
   String phone = '';
   String countryDial = '+91';
   String countryCode = 'IN';
+  /// ISO yyyy-MM-dd when set.
+  String? dateOfBirth;
+  /// introverted | ambiverted | extroverted
+  String? socialEnergy;
   final Set<String> interests = {};
   /// Custom interests added via search (id → display label). AI later.
   final Map<String, String> customInterestLabels = {};
@@ -18,12 +26,27 @@ class OnboardingData {
   bool digilockerLinked = false;
   bool selfieCaptured = false;
 
+  String get interestLabelHint {
+    if (interests.isEmpty) return 'what you love';
+    final id = interests.first;
+    for (final item in OnboardingOptions.interests) {
+      if (item.id == id) return item.label.toLowerCase();
+    }
+    return customInterestLabels[id]?.toLowerCase() ?? 'what you love';
+  }
+
   Map<String, dynamic> toProfilePatch() {
     final body = <String, dynamic>{};
     final name = firstName.trim();
     if (name.isNotEmpty) body['firstName'] = name;
     if (gender != null && gender!.isNotEmpty) body['gender'] = gender;
     if (interests.isNotEmpty) body['interests'] = interests.toList();
+    if (dateOfBirth != null && dateOfBirth!.isNotEmpty) {
+      body['dateOfBirth'] = dateOfBirth;
+    }
+    if (socialEnergy != null && socialEnergy!.isNotEmpty) {
+      body['socialEnergy'] = socialEnergy;
+    }
 
     final local = phone.replaceAll(RegExp(r'\D'), '');
     final dial = countryDial.replaceAll(RegExp(r'\D'), '');
@@ -104,6 +127,24 @@ class OnboardingOptions {
     (id: 'travel', label: 'Travel'),
     (id: 'tech', label: 'Tech'),
     (id: 'art', label: 'Art'),
+  ];
+
+  static const socialEnergies = <({String id, String label, String hint})>[
+    (
+      id: 'introverted',
+      label: 'Introverted',
+      hint: 'I prefer smaller groups or one-on-one conversations.',
+    ),
+    (
+      id: 'ambiverted',
+      label: 'Ambiverted',
+      hint: 'I enjoy both — it depends on the moment.',
+    ),
+    (
+      id: 'extroverted',
+      label: 'Extroverted',
+      hint: 'I love being around people — it gives me energy.',
+    ),
   ];
 
   static const socialProof = <({String name, String city, String quote})>[

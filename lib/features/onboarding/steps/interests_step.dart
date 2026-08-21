@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
@@ -20,32 +21,12 @@ class InterestsStep extends StatefulWidget {
 }
 
 class _InterestsStepState extends State<InterestsStep> {
-  final _search = TextEditingController();
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  List<({String id, String label})> get _visibleOptions {
-    final q = _search.text.trim().toLowerCase();
-    final all = [
-      ...OnboardingOptions.interests,
-      ...widget.data.customInterestLabels.entries
-          .map((e) => (id: e.key, label: e.value)),
-    ];
-    if (q.isEmpty) return all;
-    return all
-        .where((item) => item.label.toLowerCase().contains(q))
-        .toList();
-  }
-
   void _toggle(String id) {
     setState(() {
       if (widget.data.interests.contains(id)) {
         widget.data.interests.remove(id);
       } else if (widget.data.interests.length < OnboardingData.maxInterests) {
+        HapticFeedback.selectionClick();
         widget.data.interests.add(id);
       }
     });
@@ -53,8 +34,9 @@ class _InterestsStepState extends State<InterestsStep> {
 
   @override
   Widget build(BuildContext context) {
-    final can = widget.data.interests.isNotEmpty;
-    final visible = _visibleOptions;
+    final selectedCount = widget.data.interests.length;
+    final can = selectedCount > 0;
+    final items = OnboardingOptions.interests;
 
     return OnboardingScaffold(
       step: 9,
@@ -72,57 +54,28 @@ class _InterestsStepState extends State<InterestsStep> {
             subtitle:
                 'Pick up to five. Deeper matching comes when you book a table.',
           ),
-          const SizedBox(height: 20),
-          TextField(
-            controller: _search,
-            textInputAction: TextInputAction.search,
-            onChanged: (_) => setState(() {}),
-            style: GoogleFonts.dmSans(color: NytoColors.cream, fontSize: 15),
-            cursorColor: NytoColors.brandPink,
-            decoration: InputDecoration(
-              hintText: 'Search interests…',
-              hintStyle: GoogleFonts.dmSans(
-                color: NytoColors.cream.withValues(alpha: 0.4),
-                fontSize: 15,
-              ),
-              prefixIcon: Icon(
-                Icons.search_rounded,
-                color: NytoColors.cream.withValues(alpha: 0.45),
-              ),
-              suffixIcon: _search.text.isNotEmpty
-                  ? IconButton(
-                      onPressed: () => setState(() => _search.clear()),
-                      icon: Icon(
-                        Icons.close_rounded,
-                        color: NytoColors.cream.withValues(alpha: 0.4),
-                      ),
-                    )
-                  : null,
-              filled: true,
-              fillColor: NytoColors.cream.withValues(alpha: 0.05),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(
-                  color: NytoColors.cream.withValues(alpha: 0.12),
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide:
-                    const BorderSide(color: NytoColors.brandPink, width: 1.4),
-              ),
+          const SizedBox(height: 10),
+          Text(
+            '$selectedCount / ${OnboardingData.maxInterests}',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: selectedCount > 0
+                  ? NytoColors.ctaSoft
+                  : NytoColors.cream.withValues(alpha: 0.4),
+              letterSpacing: 0.4,
             ),
           ),
           const SizedBox(height: 18),
           Expanded(
             child: SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 12),
               child: Wrap(
                 spacing: 10,
                 runSpacing: 10,
-                children: visible.map((item) {
+                children: items.map((item) {
                   final selected = widget.data.interests.contains(item.id);
-                  final locked =
-                      !selected &&
+                  final locked = !selected &&
                       widget.data.interests.length >=
                           OnboardingData.maxInterests;
                   return _InterestChip(

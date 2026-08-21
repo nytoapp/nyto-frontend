@@ -75,11 +75,14 @@ class _EnergyStepState extends State<EnergyStep>
   Color get _faceColor {
     switch (_index) {
       case 0:
+        // Introverted — calm, muted slate
         return const Color(0xFF5B6B8C);
       case 2:
-        return NytoColors.ctaSoft;
-      default:
+        // Extroverted — solid vivid ice blue (same weight as ambivert, brighter)
         return NytoColors.cta;
+      default:
+        // Ambiverted — solid but a notch dimmer / deeper
+        return NytoColors.ctaDeep;
     }
   }
 
@@ -159,13 +162,20 @@ class _EnergyStepState extends State<EnergyStep>
                           end: Alignment.bottomRight,
                           colors: [
                             _faceColor,
-                            Color.lerp(_faceColor, Colors.black, 0.28)!,
+                            Color.lerp(
+                              _faceColor,
+                              Colors.black,
+                              _index == 2 ? 0.18 : 0.32,
+                            )!,
                           ],
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: _faceColor.withValues(alpha: 0.42),
-                            blurRadius: 32,
+                            color: _faceColor.withValues(
+                              alpha: _index == 2 ? 0.58 : 0.32,
+                            ),
+                            blurRadius: _index == 2 ? 44 : 26,
+                            spreadRadius: _index == 2 ? 2 : 0,
                             offset: const Offset(0, 12),
                           ),
                         ],
@@ -404,8 +414,9 @@ class _FacePainter extends CustomPainter {
     final mouthY = size.height * 0.62;
     final path = Path();
     if (energy == 0) {
-      path.moveTo(cx - 18, mouthY + 4);
-      path.quadraticBezierTo(cx, mouthY - 4, cx + 18, mouthY + 4);
+      // Calm straight line — not a frown (introverted ≠ sad).
+      path.moveTo(cx - 18, mouthY);
+      path.lineTo(cx + 18, mouthY);
     } else if (energy == 2) {
       path.moveTo(cx - 22, mouthY - 2);
       path.quadraticBezierTo(cx, mouthY + 16, cx + 22, mouthY - 2);

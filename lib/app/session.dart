@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:nyto_app/core/api/api_client.dart';
+import 'package:nyto_app/core/kyc/kyc_session.dart';
 
 /// JWT from email OTP, or a debug token when Google mock / offline sign-in.
 class NytoSession {
@@ -38,5 +39,6 @@ class NytoSession {
 
   static Future<void> signOut() async {
     await apiClient.clearToken();
+    await KycSession.clear();
   }
 }

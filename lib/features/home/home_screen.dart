@@ -9,10 +9,6 @@ import 'package:nyto_app/features/booking/booking_type_screen.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
-import 'package:nyto_app/features/onboarding/onboarding_data.dart';
-import 'package:nyto_app/features/verification/digilocker_step.dart';
-import 'package:nyto_app/features/verification/selfie_step.dart';
-import 'package:nyto_app/core/kyc/kyc_session.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/table/table_chat_screen.dart';
 
@@ -199,34 +195,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openTable(UpcomingTable table) async {
-    final verified = await KycSession.isVerified();
-    if (!mounted) return;
-    if (!verified) {
-      final data = OnboardingData();
-      await Navigator.of(context).push(
-        onboardingRoute(
-          DigilockerStep(
-            data: data,
-            standalone: true,
-            onContinue: () {
-              Navigator.of(context).pushReplacement(
-                onboardingRoute(
-                  SelfieStep(
-                    data: data,
-                    standalone: true,
-                    onContinue: () {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      );
-      final ok = await KycSession.isVerified();
-      if (!mounted || !ok) return;
-    }
     if (!mounted) return;
     Navigator.of(context).push(
       onboardingRoute(BookingTypeScreen(table: table)),

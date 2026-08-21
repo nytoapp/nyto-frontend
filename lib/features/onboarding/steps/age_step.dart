@@ -193,16 +193,6 @@ class _AgeStepState extends State<AgeStep> {
               ),
             ),
           ),
-          if (_age != null) ...[
-            const SizedBox(height: 14),
-            Text(
-              'You’re $_age',
-              style: GoogleFonts.dmSans(
-                fontSize: 14,
-                color: NytoColors.cream.withValues(alpha: 0.5),
-              ),
-            ),
-          ],
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(

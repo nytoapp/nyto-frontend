@@ -31,6 +31,18 @@ class _DigilockerStepState extends State<DigilockerStep> {
   void initState() {
     super.initState();
     _linked = widget.data.digilockerLinked;
+    _hydrate();
+  }
+
+  Future<void> _hydrate() async {
+    final linked = await KycSession.isDigilockerLinked();
+    if (!mounted) return;
+    if (linked) {
+      setState(() {
+        _linked = true;
+        widget.data.digilockerLinked = true;
+      });
+    }
   }
 
   Future<void> _connect() async {

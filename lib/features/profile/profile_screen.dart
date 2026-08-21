@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
+import 'package:nyto_app/core/kyc/kyc_session.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
@@ -12,6 +13,7 @@ import 'package:nyto_app/features/settings/login_security_screen.dart';
 import 'package:nyto_app/features/settings/notification_preferences_screen.dart';
 import 'package:nyto_app/features/settings/rate_app_sheet.dart';
 import 'package:nyto_app/features/settings/settings_chrome.dart';
+import 'package:nyto_app/features/verification/verify_identity_hub_screen.dart';
 
 /// Profile — stats + account / preferences / resources.
 class ProfileScreen extends StatefulWidget {
@@ -26,12 +28,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _language = 'English';
   String _displayName = 'NYTO';
   String _initial = 'N';
+  String _verifyStatus = 'Not verified';
   bool _loggingOut = false;
 
   @override
   void initState() {
     super.initState();
     _loadMe();
+    _loadVerifyStatus();
+  }
+
+  Future<void> _loadVerifyStatus() async {
+    final label = await KycSession.statusLabel();
+    if (!mounted) return;
+    setState(() => _verifyStatus = label);
   }
 
   Future<void> _loadMe() async {
@@ -272,6 +282,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SettingsSectionLabel('Account'),
               SettingsGlassGroup(
                 children: [
+                  SettingsNavRow(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Verify identity',
+                    subtitle: _verifyStatus,
+                    onTap: () async {
+                      await openSettingsPage(
+                        context,
+                        const VerifyIdentityHubScreen(),
+                      );
+                      if (mounted) await _loadVerifyStatus();
+                    },
+                  ),
                   SettingsNavRow(
                     icon: Icons.shield_outlined,
                     label: 'Login & Security',

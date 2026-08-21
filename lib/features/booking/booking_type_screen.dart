@@ -6,6 +6,7 @@ import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/core/config/app_env.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/invite_friends_screen.dart';
+import 'package:nyto_app/features/verification/verify_identity_hub_screen.dart';
 
 /// Book your own seat — friends join via invite link and pay themselves.
 class BookingTypeScreen extends StatefulWidget {
@@ -27,6 +28,17 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
       _pressed = false;
       _loading = true;
     });
+
+    final verified = await openVerificationGate(
+      context,
+      reason:
+          'Verify before you reserve — so everyone at the table is real.',
+    );
+    if (!mounted) return;
+    if (!verified) {
+      setState(() => _loading = false);
+      return;
+    }
 
     const seats = 1;
     const gstRate = 0.05; // Match backend GST_RATE — confirm with CA for production.

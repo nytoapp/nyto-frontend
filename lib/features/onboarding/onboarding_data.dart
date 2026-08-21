@@ -1,7 +1,7 @@
 /// Shared onboarding state for the short Get started → home path.
 class OnboardingData {
-  /// Goals → … → selfie (includes age, energy, curating, we-know-you).
-  static const totalSteps = 14;
+  /// Goals → … → notifications (verification is at booking / Profile).
+  static const totalSteps = 12;
 
   /// Max interests at signup; deeper topics come at booking.
   static const maxInterests = 5;
@@ -29,8 +29,10 @@ class OnboardingData {
   String get interestLabelHint {
     if (interests.isEmpty) return 'what you love';
     final id = interests.first;
-    for (final item in OnboardingOptions.interests) {
-      if (item.id == id) return item.label.toLowerCase();
+    for (final group in OnboardingOptions.interestGroups) {
+      for (final item in group.items) {
+        if (item.id == id) return item.label.toLowerCase();
+      }
     }
     return customInterestLabels[id]?.toLowerCase() ?? 'what you love';
   }
@@ -75,6 +77,18 @@ class CountryDial {
   final int maxLen;
 }
 
+class InterestGroup {
+  const InterestGroup({
+    required this.id,
+    required this.label,
+    required this.items,
+  });
+
+  final String id;
+  final String label;
+  final List<({String id, String label})> items;
+}
+
 class OnboardingOptions {
   static const goals = <({String id, String label, String hint})>[
     (
@@ -116,18 +130,68 @@ class OnboardingOptions {
     (id: 'skip', label: 'Prefer not to say'),
   ];
 
-  static const interests = <({String id, String label})>[
-    (id: 'food', label: 'Food & flavour'),
-    (id: 'film', label: 'Film & series'),
-    (id: 'music', label: 'Live music'),
-    (id: 'startups', label: 'Startups'),
-    (id: 'design', label: 'Design'),
-    (id: 'fitness', label: 'Movement'),
-    (id: 'books', label: 'Books'),
-    (id: 'travel', label: 'Travel'),
-    (id: 'tech', label: 'Tech'),
-    (id: 'art', label: 'Art'),
+  static const interestGroups = <InterestGroup>[
+    InterestGroup(
+      id: 'table',
+      label: 'At the table',
+      items: [
+        (id: 'food', label: 'Food & flavour'),
+        (id: 'cooking', label: 'Cooking'),
+        (id: 'tea_coffee', label: 'Tea & coffee'),
+        (id: 'wine', label: 'Wine'),
+      ],
+    ),
+    InterestGroup(
+      id: 'move',
+      label: 'Move',
+      items: [
+        (id: 'cricket', label: 'Cricket'),
+        (id: 'football', label: 'Football'),
+        (id: 'badminton', label: 'Badminton'),
+        (id: 'running', label: 'Running'),
+        (id: 'gym', label: 'Gym'),
+        (id: 'yoga', label: 'Yoga'),
+      ],
+    ),
+    InterestGroup(
+      id: 'culture',
+      label: 'Culture',
+      items: [
+        (id: 'film', label: 'Film & series'),
+        (id: 'music', label: 'Live music'),
+        (id: 'books', label: 'Books'),
+        (id: 'art', label: 'Art'),
+        (id: 'travel', label: 'Travel'),
+        (id: 'photography', label: 'Photography'),
+      ],
+    ),
+    InterestGroup(
+      id: 'build',
+      label: 'Build',
+      items: [
+        (id: 'startups', label: 'Startups'),
+        (id: 'tech', label: 'Tech'),
+        (id: 'design', label: 'Design'),
+        (id: 'business', label: 'Business'),
+      ],
+    ),
+    InterestGroup(
+      id: 'vibe',
+      label: 'Vibe',
+      items: [
+        (id: 'gaming', label: 'Gaming'),
+        (id: 'pets', label: 'Pets'),
+        (id: 'nature', label: 'Nature'),
+        (id: 'languages', label: 'Languages'),
+        (id: 'board_games', label: 'Board games'),
+      ],
+    ),
   ];
+
+  /// Flat list for lookups / legacy.
+  static List<({String id, String label})> get interests => [
+        for (final g in interestGroups) ...g.items,
+      ];
 
   static const socialEnergies = <({String id, String label, String hint})>[
     (

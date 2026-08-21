@@ -38,7 +38,18 @@ class _SelfieStepState extends State<SelfieStep> {
   @override
   void initState() {
     super.initState();
+    _captured = widget.data.selfieCaptured;
     _initCamera();
+    _hydrate();
+  }
+
+  Future<void> _hydrate() async {
+    final done = await KycSession.isSelfieDone();
+    if (!mounted || !done) return;
+    setState(() {
+      _captured = true;
+      widget.data.selfieCaptured = true;
+    });
   }
 
   Future<void> _initCamera() async {
@@ -108,7 +119,7 @@ class _SelfieStepState extends State<SelfieStep> {
   }
 
   Future<void> _finish() async {
-    await KycSession.markVerified();
+    await KycSession.markSelfieDone();
     widget.onContinue();
   }
 
@@ -152,7 +163,7 @@ class _SelfieStepState extends State<SelfieStep> {
       showProgress: !widget.standalone,
       footer: NytoPrimaryButton(
         label: _captured
-            ? 'Finish verification'
+            ? 'Continue'
             : (_saving ? 'Capturing…' : 'Take selfie'),
         enabled: _captured || (ready && !_saving) || _error != null,
         onPressed: _captured

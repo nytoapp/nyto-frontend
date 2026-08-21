@@ -16,10 +16,9 @@ import 'package:nyto_app/features/onboarding/steps/phone_step.dart';
 import 'package:nyto_app/features/onboarding/steps/social_proof_step.dart';
 import 'package:nyto_app/features/onboarding/steps/we_know_you_step.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
-import 'package:nyto_app/features/verification/digilocker_step.dart';
-import 'package:nyto_app/features/verification/selfie_step.dart';
 
-/// Get started path → matching questions → Home (Hyderabad v1).
+/// Get started path → matching questions → Home.
+/// DigiLocker + selfie happen at booking / Profile (not here).
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key});
 
@@ -94,16 +93,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   void _toNotifications() => _open(
-        NotificationsStep(data: _data, onFinish: _toDigilocker),
-      );
-
-  void _toDigilocker() {
-    _syncProfile();
-    _open(DigilockerStep(data: _data, onContinue: _toSelfie));
-  }
-
-  void _toSelfie() => _open(
-        SelfieStep(data: _data, onContinue: _finish),
+        NotificationsStep(data: _data, onFinish: _finish),
       );
 
   @override

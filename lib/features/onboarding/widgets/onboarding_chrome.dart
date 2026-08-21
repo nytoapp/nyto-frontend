@@ -59,16 +59,19 @@ class OnboardingScaffold extends StatelessWidget {
                                 )
                               : const SizedBox.shrink(),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          '$step/$totalSteps',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: NytoColors.cream.withValues(alpha: 0.45),
-                            letterSpacing: 0.6,
+                        if (showProgress) ...[
+                          const SizedBox(width: 12),
+                          Text(
+                            '$step/$totalSteps',
+                            style: GoogleFonts.dmSans(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: NytoColors.cream.withValues(alpha: 0.45),
+                              letterSpacing: 0.6,
+                            ),
                           ),
-                        ),
+                        ] else
+                          const SizedBox(width: 48),
                       ],
                     ),
                   ),

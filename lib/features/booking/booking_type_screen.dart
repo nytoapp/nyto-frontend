@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
-import 'package:nyto_app/core/config/app_env.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/invite_friends_screen.dart';
 import 'package:nyto_app/features/verification/verify_identity_hub_screen.dart';
@@ -42,7 +41,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
 
     const seats = 1;
     const gstRate = 0.05; // Match backend GST_RATE — confirm with CA for production.
-    String bookingId = 'demo-${widget.table.id}-$seats';
+    late String bookingId;
     final seatSubtotal = widget.table.priceInr * seats;
     final gst = (seatSubtotal * gstRate).round();
     var total = seatSubtotal + gst;
@@ -56,28 +55,29 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
             bookingType: 'SOLO',
             seatsBooked: seats,
           )
-          .timeout(const Duration(seconds: 2));
+          .timeout(const Duration(seconds: 8));
       final booking = res['booking'] as Map<String, dynamic>?;
       final pricing = res['pricing'] as Map<String, dynamic>?;
-      if (booking?['id'] is String) bookingId = booking!['id'] as String;
+      final id = booking?['id'];
+      if (id is! String || id.isEmpty) {
+        throw StateError('Missing booking id');
+      }
+      bookingId = id;
       if (pricing != null) {
         sub = pricing['seatSubtotal'] as int? ?? sub;
         gstAmt = pricing['gst'] as int? ?? gstAmt;
         total = pricing['total'] as int? ?? total;
       }
     } catch (_) {
-      if (!AppEnv.allowDemoCheckout) {
-        if (!mounted) return;
-        setState(() => _loading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not create booking. Try again.'),
-            backgroundColor: NytoColors.surface,
-          ),
-        );
-        return;
-      }
-      // Debug: continue with a local booking id when API is offline.
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not create booking. Try again.'),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+      return;
     }
 
     if (!mounted) return;

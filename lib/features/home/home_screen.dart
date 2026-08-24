@@ -6,11 +6,11 @@ import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/booking/booking_type_screen.dart';
+import 'package:nyto_app/features/chat/chat_list_tab.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
 import 'package:nyto_app/domain/table.dart';
-import 'package:nyto_app/features/table/table_chat_screen.dart';
 
 /// Soft client lanes until backend visibility windows ship (Phase B).
 class _HomeLanes {
@@ -176,19 +176,20 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       final parsed = rows.map(UpcomingTable.fromJson).toList();
       setState(() {
-        _tables = parsed.isNotEmpty ? parsed : _demoTables;
+        // Never fall back to demo-* ids — they break booking/chat.
+        _tables = parsed;
         _loading = false;
       });
     } on ApiException catch (_) {
       if (!mounted) return;
       setState(() {
-        _tables = _demoTables;
+        _tables = const [];
         _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _tables = _demoTables;
+        _tables = const [];
         _loading = false;
       });
     }
@@ -228,7 +229,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onBell: () {},
                     onRefresh: _load,
                   ),
-                  const _ChatListTab(),
+                  ChatListTab(active: _tab == 1),
                   const MyBookingsScreen(embedded: true),
                   const ProfileScreen(),
                 ],
@@ -1352,206 +1353,6 @@ class _NavItem extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Chat tab — lists booked table chats. Demo data until backend.
-class _ChatListTab extends StatelessWidget {
-  const _ChatListTab();
-
-  static const _demoChats = [
-    (
-      venue: 'Jubilee Hills',
-      day: 'Friday',
-      time: '8:00 PM',
-      lastMsg: 'Hey everyone! Excited for this one.',
-      joined: 3,
-      capacity: 6,
-    ),
-    (
-      venue: 'Gachibowli',
-      day: 'Wednesday',
-      time: '8:00 PM',
-      lastMsg: 'Say hi to your table',
-      joined: 1,
-      capacity: 6,
-    ),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 12, 22, 0),
-          child: Text(
-            'Chats',
-            style: GoogleFonts.dmSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.6,
-              color: NytoColors.cream.withValues(alpha: 0.45),
-            ),
-          ),
-        ),
-        Expanded(
-          child: _demoChats.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.chat_bubble_outline_rounded,
-                            size: 40,
-                            color: NytoColors.cta.withValues(alpha: 0.85)),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Chat',
-                          style: GoogleFonts.fraunces(
-                            fontSize: 26,
-                            color: NytoColors.cream,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your table chats unlock after you book a seat.',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.dmSans(
-                            fontSize: 14,
-                            color: NytoColors.cream.withValues(alpha: 0.45),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-                  itemCount: _demoChats.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final c = _demoChats[index];
-                    return Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => TableChatScreen(
-                                venueName: c.venue,
-                                dayLabel: c.day,
-                                timeLabel: c.time,
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: NytoColors.surface,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color:
-                                  NytoColors.cream.withValues(alpha: 0.08),
-                            ),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color:
-                                      NytoColors.cta.withValues(alpha: 0.18),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.chat_bubble_outline_rounded,
-                                  size: 22,
-                                  color: NytoColors.ctaSoft,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            c.venue,
-                                            style: GoogleFonts.dmSans(
-                                              fontSize: 15,
-                                              fontWeight: FontWeight.w600,
-                                              color: NytoColors.cream,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: NytoColors.cta
-                                                .withValues(alpha: 0.15),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            '${c.joined}/${c.capacity}',
-                                            style: GoogleFonts.dmSans(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700,
-                                              color: NytoColors.ctaSoft,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${c.day} · ${c.time}',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 12,
-                                        color: NytoColors.cream
-                                            .withValues(alpha: 0.45),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      c.lastMsg,
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 13,
-                                        color: NytoColors.cream
-                                            .withValues(alpha: 0.5),
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-        ),
-      ],
     );
   }
 }

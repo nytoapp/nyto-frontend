@@ -35,6 +35,7 @@ class BookingDetailScreen extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TableChatScreen(
+          tableId: table.id,
           venueName: table.area,
           dayLabel: _dayLong,
           timeLabel: table.timeLabel,

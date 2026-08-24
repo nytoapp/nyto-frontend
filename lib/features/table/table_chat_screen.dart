@@ -1,18 +1,22 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:nyto_app/core/api/api_client.dart';
+import 'package:nyto_app/core/api/chat_api.dart';
+import 'package:nyto_app/core/realtime/chat_socket.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
+import 'package:nyto_app/features/chat/direct_chat_screen.dart';
+import 'package:socket_io_client/socket_io_client.dart' as io;
 
 class _Member {
   const _Member({
+    required this.id,
     required this.initial,
     required this.name,
     required this.color,
     this.isYou = false,
   });
 
+  final String id;
   final String initial;
   final String name;
   final Color color;
@@ -21,27 +25,35 @@ class _Member {
 
 class _ChatMessage {
   _ChatMessage({
-    required this.sender,
-    this.text,
-    this.imagePath,
-    required this.time,
+    required this.id,
+    required this.senderId,
+    required this.senderName,
+    required this.text,
+    required this.createdAt,
+    this.isYou = false,
+    this.isSystem = false,
   });
 
-  final String sender;
-  final String? text;
-  final String? imagePath;
-  final String time;
+  final String id;
+  final String senderId;
+  final String senderName;
+  final String text;
+  final DateTime createdAt;
+  final bool isYou;
+  final bool isSystem;
 }
 
-/// Ice-blue table chat — text + images. Real-time sync via backend later.
+/// Real table group chat — HTTP history + Socket.IO live updates.
 class TableChatScreen extends StatefulWidget {
   const TableChatScreen({
     super.key,
+    required this.tableId,
     this.venueName = 'Venue',
-    this.dayLabel = 'Friday',
-    this.timeLabel = '8:30 PM',
+    this.dayLabel = '',
+    this.timeLabel = '',
   });
 
+  final String tableId;
   final String venueName;
   final String dayLabel;
   final String timeLabel;
@@ -51,76 +63,222 @@ class TableChatScreen extends StatefulWidget {
 }
 
 class _TableChatScreenState extends State<TableChatScreen> {
-  static const _members = [
-    _Member(initial: 'A', name: 'Arjun', color: Color(0xFF2B5CE8)),
-    _Member(initial: 'S', name: 'Sara', color: Color(0xFF3D5C48)),
-    _Member(initial: 'R', name: 'Riya', color: Color(0xFF5C4638)),
-    _Member(initial: 'K', name: 'Karan', color: Color(0xFF8A7358)),
-    _Member(initial: 'D', name: 'Dev', color: Color(0xFF2F4F3E)),
-    _Member(
-      initial: 'Y',
-      name: 'You',
-      color: NytoColors.cta,
-      isYou: true,
-    ),
-  ];
-
-  final _messages = <_ChatMessage>[
-    _ChatMessage(
-      sender: 'System',
-      text: "You're first — others will join here once they book.",
-      time: '',
-    ),
-    _ChatMessage(
-      sender: 'Arjun',
-      text: 'Hey everyone! Excited for this one.',
-      time: '6:12 PM',
-    ),
-    _ChatMessage(
-      sender: 'Sara',
-      text: 'Same here! Anyone been to this venue before?',
-      time: '6:14 PM',
-    ),
-    _ChatMessage(
-      sender: 'Riya',
-      text: 'First time. Heard great things though.',
-      time: '6:15 PM',
-    ),
+  static const _palette = [
+    Color(0xFF2B5CE8),
+    Color(0xFF3D5C48),
+    Color(0xFF5C4638),
+    Color(0xFF8A7358),
+    Color(0xFF2F4F3E),
+    NytoColors.cta,
   ];
 
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  final _picker = ImagePicker();
+  final _messages = <_ChatMessage>[];
+  final _seenIds = <String>{};
+
+  List<_Member> _members = [];
+  int _capacity = 6;
+  bool _loading = true;
+  bool _sending = false;
+  bool _canSend = true;
+  String _chatState = 'ACTIVE';
+  String? _error;
+  String? _myUserId;
+  io.Socket? _socket;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrap();
+  }
 
   @override
   void dispose() {
+    ChatSocket.leaveTable(widget.tableId);
+    _socket?.off('message.created');
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  void _send() {
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
+  Future<void> _bootstrap() async {
     setState(() {
-      _messages.add(_ChatMessage(sender: 'You', text: text, time: 'Now'));
-      _controller.clear();
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final meta = await chatApi.tableConversation(widget.tableId);
+      final conversation = meta['conversation'] as Map<String, dynamic>?;
+      final chat = conversation?['chat'] as Map?;
+      final membersRaw = conversation?['members'];
+      final members = <_Member>[];
+      if (membersRaw is List) {
+        for (var i = 0; i < membersRaw.length; i++) {
+          final m = membersRaw[i] as Map;
+          final isYou = m['isYou'] == true;
+          if (isYou) _myUserId = m['id'] as String?;
+          members.add(
+            _Member(
+              id: m['id'] as String? ?? '$i',
+              initial: m['initial'] as String? ?? '?',
+              name: isYou ? 'You' : (m['firstName'] as String? ?? 'Guest'),
+              color: _palette[i % _palette.length],
+              isYou: isYou,
+            ),
+          );
+        }
+      }
+
+      final hist = await chatApi.messages(widget.tableId);
+      final rows = hist['messages'];
+      final msgs = <_ChatMessage>[];
+      if (rows is List) {
+        for (final row in rows) {
+          if (row is! Map) continue;
+          final msg = _fromApi(row.cast<String, dynamic>());
+          if (_seenIds.add(msg.id)) msgs.add(msg);
+        }
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _members = members;
+        _capacity = conversation?['capacity'] as int? ?? 6;
+        _messages
+          ..clear()
+          ..addAll(msgs);
+        if (_messages.isEmpty) {
+          _messages.add(
+            _ChatMessage(
+              id: 'system-empty',
+              senderId: 'system',
+              senderName: 'System',
+              text: "You're here — say hi. Others appear as they book.",
+              createdAt: DateTime.now(),
+              isSystem: true,
+            ),
+          );
+        }
+        _canSend = chat?['canSend'] == true;
+        _chatState = chat?['state'] as String? ?? 'ACTIVE';
+        _loading = false;
+      });
+      _scrollToBottom();
+      await _connectSocket();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Could not open chat. Is the server running?';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _connectSocket() async {
+    try {
+      final socket = await ChatSocket.connect();
+      _socket = socket;
+      ChatSocket.joinTable(widget.tableId);
+      socket.off('message.created');
+      socket.on('message.created', (data) {
+        if (data is! Map) return;
+        final payload = data['payload'];
+        if (payload is! Map) return;
+        final message = payload['message'];
+        if (message is! Map) return;
+        if (message['tableId'] != widget.tableId) return;
+        _ingest(message.cast<String, dynamic>());
+      });
+    } catch (_) {
+      // History still works over HTTP if socket fails.
+    }
+  }
+
+  _ChatMessage _fromApi(Map<String, dynamic> json) {
+    final sender = json['sender'];
+    final senderMap = sender is Map ? sender.cast<String, dynamic>() : null;
+    final senderId = senderMap?['id'] as String? ?? '';
+    final name = senderMap?['firstName'] as String? ?? 'Guest';
+    final isYou = senderId.isNotEmpty && senderId == _myUserId;
+    final created = DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+        DateTime.now();
+    return _ChatMessage(
+      id: json['id'] as String? ?? created.microsecondsSinceEpoch.toString(),
+      senderId: senderId,
+      senderName: isYou ? 'You' : name,
+      text: json['body'] as String? ?? '',
+      createdAt: created.toLocal(),
+      isYou: isYou,
+    );
+  }
+
+  void _ingest(Map<String, dynamic> json) {
+    final msg = _fromApi(json);
+    if (!_seenIds.add(msg.id)) return;
+    if (!mounted) return;
+    setState(() {
+      _messages.removeWhere((m) => m.isSystem && m.id == 'system-empty');
+      _messages.add(msg);
     });
     _scrollToBottom();
   }
 
-  Future<void> _pickImage() async {
-    final file = await _picker.pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1200,
-    );
-    if (file == null || !mounted) return;
-    setState(() {
-      _messages.add(
-        _ChatMessage(sender: 'You', imagePath: file.path, time: 'Now'),
+  String _timeLabel(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final ap = dt.hour >= 12 ? 'PM' : 'AM';
+    return '$h:$m $ap';
+  }
+
+  Future<void> _send() async {
+    final text = _controller.text.trim();
+    if (text.isEmpty || _sending || !_canSend) return;
+    setState(() => _sending = true);
+    final clientId =
+        'c_${DateTime.now().microsecondsSinceEpoch}_${text.hashCode}';
+    try {
+      final res = await chatApi.sendMessage(
+        tableId: widget.tableId,
+        body: text,
+        clientMessageId: clientId,
       );
-    });
-    _scrollToBottom();
+      final message = res['message'];
+      if (message is Map) {
+        _ingest(message.cast<String, dynamic>());
+      }
+      _controller.clear();
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+      if (e.statusCode == 403) {
+        setState(() {
+          _canSend = false;
+          _chatState = 'DISABLED';
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not send. Try again.'),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
   }
 
   void _scrollToBottom() {
@@ -134,18 +292,44 @@ class _TableChatScreenState extends State<TableChatScreen> {
     });
   }
 
-  Color _colorFor(String sender) {
-    if (sender == 'System') return NytoColors.surface;
+  Color _colorFor(String senderId) {
     for (final m in _members) {
-      if (m.isYou && sender == 'You') return m.color;
-      if (m.name == sender) return m.color;
+      if (m.id == senderId) return m.color;
     }
     return NytoColors.surface;
   }
 
-  String _initialFor(String sender) {
-    if (sender == 'You') return 'Y';
-    return sender.isEmpty ? '?' : sender[0];
+  Future<void> _openDirect(_Member member) async {
+    try {
+      final res = await chatApi.openDirect(member.id);
+      final conversation = res['conversation'] as Map<String, dynamic>?;
+      final threadId = conversation?['threadId'] as String? ?? '';
+      final peer = conversation?['peer'] as Map?;
+      if (!mounted || threadId.isEmpty) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => DirectChatScreen(
+            threadId: threadId,
+            peerName: peer?['firstName'] as String? ?? member.name,
+            peerUserId: member.id,
+            incomingRequest: conversation?['status'] == 'PENDING' &&
+                conversation?['initiatedByMe'] != true,
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message), backgroundColor: NytoColors.surface),
+      );
+    }
+  }
+
+  String _initialFor(String senderId, String name) {
+    for (final m in _members) {
+      if (m.id == senderId) return m.initial;
+    }
+    return name.isEmpty ? '?' : name[0].toUpperCase();
   }
 
   @override
@@ -155,29 +339,39 @@ class _TableChatScreenState extends State<TableChatScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             _buildHeader(),
-            // Member row
-            _buildMemberStrip(),
+            if (!_loading && _error == null) _buildMemberStrip(),
             Divider(
               height: 1,
               color: NytoColors.cream.withValues(alpha: 0.08),
             ),
-            // Messages
-            Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                itemCount: _messages.length,
-                itemBuilder: (_, i) => _buildMessage(i),
+            if (!_canSend)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: NytoColors.cta.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  'This table chat has ended. You can still message participants individually.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: NytoColors.ctaSoft,
+                  ),
+                ),
               ),
-            ),
-            // Composer
-            _buildComposer(),
+            Expanded(child: _buildBody()),
+            if (_canSend) _buildComposer(),
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 10, top: 4),
               child: Text(
-                'Private to this table only · No DMs · Report',
+                _chatState == 'DISABLED'
+                    ? 'Read-only · Table chat ended'
+                    : 'Private to this table',
                 style: GoogleFonts.dmSans(
                   fontSize: 11,
                   color: NytoColors.creamMuted,
@@ -190,7 +384,57 @@ class _TableChatScreenState extends State<TableChatScreen> {
     );
   }
 
+  Widget _buildBody() {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: NytoColors.ctaSoft),
+      );
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _error!,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.dmSans(
+                  color: NytoColors.cream.withValues(alpha: 0.7),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: _bootstrap,
+                child: Text(
+                  'Retry',
+                  style: GoogleFonts.dmSans(
+                    fontWeight: FontWeight.w700,
+                    color: NytoColors.ctaSoft,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      controller: _scrollController,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      itemCount: _messages.length,
+      itemBuilder: (_, i) => _buildMessage(i),
+    );
+  }
+
   Widget _buildHeader() {
+    final when = [
+      if (widget.dayLabel.isNotEmpty) widget.dayLabel,
+      if (widget.timeLabel.isNotEmpty) widget.timeLabel,
+    ].join(' · ');
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
       child: Row(
@@ -208,49 +452,23 @@ class _TableChatScreenState extends State<TableChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${widget.venueName} · ${widget.dayLabel} · ${widget.timeLabel}',
+                  widget.venueName,
                   style: GoogleFonts.dmSans(
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w600,
                     color: NytoColors.cream,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(
-                      Icons.lock_outline,
-                      size: 12,
-                      color: NytoColors.creamMuted,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Table group · Private',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        color: NytoColors.creamMuted,
-                      ),
-                    ),
-                  ],
+                Text(
+                  when.isEmpty ? 'Table group · Private' : when,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 12,
+                    color: NytoColors.creamMuted,
+                  ),
                 ),
               ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: NytoColors.cta,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              'NYTO',
-              style: GoogleFonts.dmSans(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 1,
-                color: NytoColors.cream,
-              ),
             ),
           ),
         ],
@@ -259,6 +477,18 @@ class _TableChatScreenState extends State<TableChatScreen> {
   }
 
   Widget _buildMemberStrip() {
+    if (_members.length <= 1) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+        child: Text(
+          'Waiting for your table · ${_members.length} of $_capacity seated',
+          style: GoogleFonts.dmSans(
+            fontSize: 13,
+            color: NytoColors.cream.withValues(alpha: 0.5),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 78,
       child: ListView.separated(
@@ -268,37 +498,40 @@ class _TableChatScreenState extends State<TableChatScreen> {
         separatorBuilder: (_, __) => const SizedBox(width: 14),
         itemBuilder: (_, index) {
           final m = _members[index];
-          return Column(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: m.color.withValues(alpha: 0.35),
-                  shape: BoxShape.circle,
-                  border: m.isYou
-                      ? Border.all(color: NytoColors.ctaSoft, width: 1.5)
-                      : null,
-                ),
-                child: Text(
-                  m.initial,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: NytoColors.cream,
+          return GestureDetector(
+            onTap: m.isYou ? null : () => _openDirect(m),
+            child: Column(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: m.color.withValues(alpha: 0.35),
+                    shape: BoxShape.circle,
+                    border: m.isYou
+                        ? Border.all(color: NytoColors.ctaSoft, width: 1.5)
+                        : null,
+                  ),
+                  child: Text(
+                    m.initial,
+                    style: GoogleFonts.dmSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: NytoColors.cream,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                m.name,
-                style: GoogleFonts.dmSans(
-                  fontSize: 11,
-                  color: m.isYou ? NytoColors.ctaSoft : NytoColors.creamMuted,
+                const SizedBox(height: 6),
+                Text(
+                  m.name,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    color: m.isYou ? NytoColors.ctaSoft : NytoColors.creamMuted,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -307,10 +540,7 @@ class _TableChatScreenState extends State<TableChatScreen> {
 
   Widget _buildMessage(int index) {
     final msg = _messages[index];
-    final isYou = msg.sender == 'You';
-    final isSystem = msg.sender == 'System';
-
-    if (isSystem) {
+    if (msg.isSystem) {
       return Padding(
         padding: const EdgeInsets.only(bottom: 16),
         child: Center(
@@ -321,7 +551,7 @@ class _TableChatScreenState extends State<TableChatScreen> {
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              msg.text ?? '',
+              msg.text,
               textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
                 fontSize: 13,
@@ -333,10 +563,11 @@ class _TableChatScreenState extends State<TableChatScreen> {
       );
     }
 
+    final isYou = msg.isYou;
     final showHeader = !isYou &&
         (index == 0 ||
-            _messages[index - 1].sender != msg.sender ||
-            _messages[index - 1].sender == 'System');
+            _messages[index - 1].isSystem ||
+            _messages[index - 1].senderId != msg.senderId);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -355,11 +586,11 @@ class _TableChatScreenState extends State<TableChatScreen> {
                     height: 22,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: _colorFor(msg.sender).withValues(alpha: 0.35),
+                      color: _colorFor(msg.senderId).withValues(alpha: 0.35),
                       shape: BoxShape.circle,
                     ),
                     child: Text(
-                      _initialFor(msg.sender),
+                      _initialFor(msg.senderId, msg.senderName),
                       style: GoogleFonts.dmSans(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -369,7 +600,7 @@ class _TableChatScreenState extends State<TableChatScreen> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    msg.sender,
+                    msg.senderName,
                     style: GoogleFonts.dmSans(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -379,65 +610,37 @@ class _TableChatScreenState extends State<TableChatScreen> {
                 ],
               ),
             ),
-          // Image message
-          if (msg.imagePath != null)
-            Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * 0.68,
-              ),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: NytoColors.cream.withValues(alpha: 0.08),
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: Image.file(
-                  File(msg.imagePath!),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: 200,
-                ),
-              ),
+          Container(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.sizeOf(context).width * 0.78,
             ),
-          // Text message
-          if (msg.text != null)
-            Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width * 0.78,
-              ),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: isYou
-                    ? const LinearGradient(
-                        colors: [NytoColors.ctaDeep, NytoColors.cta],
-                      )
-                    : null,
-                color: isYou ? null : NytoColors.surface,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Text(
-                msg.text!,
-                style: GoogleFonts.dmSans(
-                  fontSize: 14,
-                  height: 1.4,
-                  color: NytoColors.cream,
-                ),
-              ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              gradient: isYou
+                  ? const LinearGradient(
+                      colors: [NytoColors.ctaDeep, NytoColors.cta],
+                    )
+                  : null,
+              color: isYou ? null : NytoColors.surface,
+              borderRadius: BorderRadius.circular(14),
             ),
-          if (msg.time.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              msg.time,
+            child: Text(
+              msg.text,
               style: GoogleFonts.dmSans(
-                fontSize: 11,
-                color: NytoColors.creamMuted,
+                fontSize: 14,
+                height: 1.4,
+                color: NytoColors.cream,
               ),
             ),
-          ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _timeLabel(msg.createdAt),
+            style: GoogleFonts.dmSans(
+              fontSize: 11,
+              color: NytoColors.creamMuted,
+            ),
+          ),
         ],
       ),
     );
@@ -448,27 +651,10 @@ class _TableChatScreenState extends State<TableChatScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Row(
         children: [
-          Material(
-            color: NytoColors.surface,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: _pickImage,
-              child: const SizedBox(
-                width: 42,
-                height: 42,
-                child: Icon(
-                  Icons.add_rounded,
-                  size: 22,
-                  color: NytoColors.creamMuted,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
           Expanded(
             child: TextField(
               controller: _controller,
+              enabled: !_sending,
               style: GoogleFonts.dmSans(
                 fontSize: 15,
                 color: NytoColors.cream,
@@ -501,15 +687,23 @@ class _TableChatScreenState extends State<TableChatScreen> {
             shape: const CircleBorder(),
             child: InkWell(
               customBorder: const CircleBorder(),
-              onTap: _send,
-              child: const SizedBox(
+              onTap: _sending ? null : _send,
+              child: SizedBox(
                 width: 46,
                 height: 46,
-                child: Icon(
-                  Icons.send_rounded,
-                  size: 20,
-                  color: NytoColors.cream,
-                ),
+                child: _sending
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: NytoColors.cream,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.send_rounded,
+                        size: 20,
+                        color: NytoColors.cream,
+                      ),
               ),
             ),
           ),

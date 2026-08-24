@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
-import 'package:nyto_app/core/config/app_env.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/booking_confirmed_screen.dart';
 
@@ -95,20 +94,20 @@ class _PaymentScreenState extends State<PaymentScreen> {
               bookingId: widget.bookingId,
               method: _method == PayMethod.upi ? 'UPI' : 'CARD',
             )
-            .timeout(const Duration(seconds: 2));
+            .timeout(const Duration(seconds: 8));
+      } else {
+        throw StateError('Demo booking id');
       }
     } catch (_) {
-      if (!AppEnv.allowDemoCheckout) {
-        if (!mounted) return;
-        setState(() => _paying = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment failed. Try again.'),
-            backgroundColor: NytoColors.surface,
-          ),
-        );
-        return;
-      }
+      if (!mounted) return;
+      setState(() => _paying = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Payment failed. Try again.'),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+      return;
     }
 
     // Simulate processing delay

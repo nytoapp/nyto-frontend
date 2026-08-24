@@ -7,7 +7,15 @@ import 'package:nyto_app/features/table/table_chat_screen.dart';
 
 /// Table reveal (~24h before) — match `designs/Screenshot (3724–3726)`.
 class TableRevealScreen extends StatefulWidget {
-  const TableRevealScreen({super.key});
+  const TableRevealScreen({
+    super.key,
+    this.tableId,
+    this.venueName = 'Your table',
+  });
+
+  /// When set, opens the real table group chat. Demo UI otherwise.
+  final String? tableId;
+  final String venueName;
 
   @override
   State<TableRevealScreen> createState() => _TableRevealScreenState();
@@ -442,9 +450,24 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                     onTapDown: (_) => setState(() => _pressed = true),
                     onTapUp: (_) {
                       setState(() => _pressed = false);
+                      final id = widget.tableId;
+                      if (id == null || id.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Table chat unlocks from your booking.',
+                            ),
+                            backgroundColor: NytoColors.surface,
+                          ),
+                        );
+                        return;
+                      }
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
-                          builder: (_) => const TableChatScreen(),
+                          builder: (_) => TableChatScreen(
+                            tableId: id,
+                            venueName: widget.venueName,
+                          ),
                         ),
                       );
                     },

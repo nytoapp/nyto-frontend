@@ -83,7 +83,7 @@ flutter:
     - assets/brand/nyto_logo_wordmark.png
     - assets/brand/nyto_boot_splash.png
     - assets/brand/google_g.svg
-    - assets/video/welcome_loop.mp4
+    - assets/video/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

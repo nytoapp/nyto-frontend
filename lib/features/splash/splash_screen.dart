@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:nyto_app/core/media/welcome_video_clip.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
-import 'package:video_player/video_player.dart';
 
-/// One brand beat: same full-bleed boot art as native → Welcome video.
+/// One brand beat: same full-bleed boot art as native → Welcome carousel.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -16,13 +16,12 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen> {
   static const _bootArt = 'assets/brand/nyto_boot_splash.png';
-  static const _videoAsset = 'assets/video/welcome_loop.mp4';
   static const _bootChannel = MethodChannel('nyto/boot');
   static const _hold = Duration(milliseconds: 1800);
 
   bool _navigated = false;
-  VideoPlayerController? _warmVideo;
-  bool _ownsWarmVideo = true;
+  WelcomeCarouselSession? _warmSession;
+  bool _ownsSession = true;
 
   @override
   void initState() {
@@ -42,42 +41,38 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!mounted || _navigated) return;
     await Future.wait<void>([
       Future<void>.delayed(_hold),
-      _warmWelcomeVideo(),
+      _warmWelcomeCarousel(),
     ]);
     if (!mounted || _navigated) return;
     await _goWelcome();
   }
 
-  Future<void> _warmWelcomeVideo() async {
-    try {
-      await rootBundle.load(_videoAsset);
-      final controller = VideoPlayerController.asset(_videoAsset);
-      await controller
-          .initialize()
-          .timeout(const Duration(milliseconds: 2800));
-      await controller.setLooping(true);
-      await controller.setVolume(0);
-      await controller.play();
-      if (!mounted) {
-        await controller.dispose();
-        return;
+  Future<void> _warmWelcomeCarousel() async {
+    final session = await WelcomeVideoClip.createCarousel();
+    if (session == null || !mounted) {
+      if (session != null) {
+        for (final c in session.controllers) {
+          await c.dispose();
+        }
       }
-      _warmVideo = controller;
-    } catch (_) {}
+      return;
+    }
+    _warmSession = session;
   }
 
   Future<void> _goWelcome() async {
     if (_navigated || !mounted) return;
     _navigated = true;
-    final handedOff = _warmVideo;
-    _warmVideo = null;
-    _ownsWarmVideo = false;
+    final handedOff = _warmSession;
+    _warmSession = null;
+    _ownsSession = false;
 
-    // Keep native bridge up through the route change, then drop.
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         opaque: true,
-        pageBuilder: (_, __, ___) => WelcomeScreen(preloadedVideo: handedOff),
+        pageBuilder: (_, __, ___) => WelcomeScreen(
+          preloadedSession: handedOff,
+        ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: CurvedAnimation(
@@ -99,8 +94,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   void dispose() {
-    if (_ownsWarmVideo) {
-      _warmVideo?.dispose();
+    if (_ownsSession && _warmSession != null) {
+      for (final c in _warmSession!.controllers) {
+        unawaited(c.dispose());
+      }
     }
     super.dispose();
   }

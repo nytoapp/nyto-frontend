@@ -3,54 +3,61 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/core/media/welcome_video_clip.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/sign_in_screen.dart';
 import 'package:nyto_app/features/onboarding/onboarding_flow.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:video_player/video_player.dart';
 
-/// Screen 2 — cinematic welcome: full-bleed media, invite copy, CTA stack.
+/// Screen 2 — cinematic welcome: 4-clip carousel, synced copy, CTA stack.
 class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({super.key, this.preloadedVideo});
+  const WelcomeScreen({
+    super.key,
+    this.preloadedSession,
+    this.preloadedFirst,
+    this.preloadedAssetPath,
+  });
 
-  /// Optional controller warmed on splash so video + UI reveal together.
-  final VideoPlayerController? preloadedVideo;
+  /// Full carousel warmed on splash (preferred).
+  final WelcomeCarouselSession? preloadedSession;
+
+  /// Legacy: first clip only — rest load on welcome.
+  final VideoPlayerController? preloadedFirst;
+  final String? preloadedAssetPath;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
 class _WelcomeScreenState extends State<WelcomeScreen>
-    with SingleTickerProviderStateMixin {
-  static const _videoAsset = 'assets/video/welcome_loop.mp4';
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   static const _bootArt = 'assets/brand/nyto_boot_splash.png';
   static const _bootChannel = MethodChannel('nyto/boot');
 
-  static const _headlines = <String>[
-    "You've been invited\nto dinner.",
-    'A table is waiting\nfor you.',
-    'Tonight, sit with people\nworth meeting.',
-  ];
-
-  VideoPlayerController? _video;
+  WelcomeCarouselSession? _session;
+  WelcomeCarouselController? _carousel;
   bool _useVideo = false;
   bool _uiReady = false;
-  int _headlineIndex = 0;
-  Timer? _headlineTimer;
+  bool _ownsSession = true;
   late final AnimationController _enter;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _enter = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 520),
     );
     _setSystemUi();
-    final pre = widget.preloadedVideo;
-    if (pre != null && pre.value.isInitialized) {
-      _video = pre;
+
+    final preSession = widget.preloadedSession;
+    if (preSession != null && preSession.controllers.isNotEmpty) {
+      _session = preSession;
       _useVideo = true;
+      _ownsSession = false;
+      _startCarousel();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _revealUi();
       });
@@ -70,49 +77,53 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
-  Future<bool> _hasBundledAsset(String key) async {
-    try {
-      await rootBundle.load(key);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<void> _bootMedia() async {
-    // Wait for video (or timeout) BEFORE revealing text/CTAs —
-    // avoids the ugly "text on black, then video pops in" lag.
-    await _tryStartVideo();
+    await _loadCarousel(
+      preloadedFirst: widget.preloadedFirst,
+      preloadedAssetPath: widget.preloadedAssetPath,
+    );
     if (!mounted) return;
     _revealUi();
   }
 
-  Future<void> _tryStartVideo() async {
-    if (!await _hasBundledAsset(_videoAsset)) return;
-    try {
-      final controller = VideoPlayerController.asset(_videoAsset);
-      await controller
-          .initialize()
-          .timeout(const Duration(milliseconds: 2800));
-      await controller.setLooping(true);
-      await controller.setVolume(0);
-      if (!mounted) {
-        await controller.dispose();
-        return;
+  Future<void> _loadCarousel({
+    VideoPlayerController? preloadedFirst,
+    String? preloadedAssetPath,
+  }) async {
+    final session = await WelcomeVideoClip.createCarousel(
+      preloadedFirst: preloadedFirst,
+      preloadedAssetPath: preloadedAssetPath,
+    );
+    if (session == null || !mounted) {
+      if (session != null) {
+        await _disposeSession(session, keep: preloadedFirst);
       }
-      await controller.play();
-      if (!mounted) {
-        await controller.dispose();
-        return;
+      return;
+    }
+    _session = session;
+    _startCarousel();
+    setState(() => _useVideo = true);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  }
+
+  void _startCarousel() {
+    final session = _session;
+    if (session == null) return;
+    _carousel?.dispose();
+    _carousel = WelcomeCarouselController(
+      session: session,
+      vsync: this,
+    );
+  }
+
+  Future<void> _disposeSession(
+    WelcomeCarouselSession session, {
+    VideoPlayerController? keep,
+  }) async {
+    for (final c in session.controllers) {
+      if (c != keep) {
+        await c.dispose();
       }
-      // Paint one video frame before UI fades in.
-      setState(() {
-        _video = controller;
-        _useVideo = true;
-      });
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-    } catch (_) {
-      // Timeout / missing codec — reveal on ink rather than hang.
     }
   }
 
@@ -120,8 +131,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (!mounted) return;
     setState(() => _uiReady = true);
     _enter.forward(from: 0);
-    _startHeadlineLoop();
-    // Soft fade is handled natively on the Image 1 cover.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _dropNativeBridge();
     });
@@ -131,14 +140,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     try {
       await _bootChannel.invokeMethod<void>('dropBridge');
     } catch (_) {}
-  }
-
-  void _startHeadlineLoop() {
-    _headlineTimer?.cancel();
-    _headlineTimer = Timer.periodic(const Duration(milliseconds: 4200), (_) {
-      if (!mounted) return;
-      setState(() => _headlineIndex = (_headlineIndex + 1) % _headlines.length);
-    });
   }
 
   void _goSignUp() {
@@ -152,9 +153,19 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _carousel?.resumePlayback();
+    }
+  }
+
+  @override
   void dispose() {
-    _headlineTimer?.cancel();
-    _video?.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    _carousel?.dispose();
+    if (_ownsSession && _session != null) {
+      unawaited(_disposeSession(_session!));
+    }
     _enter.dispose();
     super.dispose();
   }
@@ -163,6 +174,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   Widget build(BuildContext context) {
     final fade = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
     final lift = Tween<double>(begin: 18, end: 0).animate(fade);
+    final carousel = _carousel;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -178,11 +190,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         body: Stack(
           fit: StackFit.expand,
           children: [
-            _MediaBackdrop(
-              useVideo: _useVideo,
-              video: _video,
-            ),
-            // Same Image 1 art under native bridge until video is ready.
+            if (carousel != null && _useVideo)
+              _CarouselBackdrop(carousel: carousel)
+            else
+              const ColoredBox(color: NytoColors.brandInk),
             if (!_uiReady)
               const Image(
                 image: AssetImage(_bootArt),
@@ -191,144 +202,96 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 filterQuality: FilterQuality.high,
               ),
             if (_uiReady) const _CinematicScrim(),
-            if (_uiReady)
+            if (_uiReady && carousel != null)
               SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 10, 24, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Spacer(),
-                    AnimatedBuilder(
-                      animation: _enter,
-                      builder: (context, child) {
-                        return Opacity(
-                          opacity: _uiReady ? fade.value : 0,
-                          child: Transform.translate(
-                            offset: Offset(0, lift.value),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 700),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
-                            // Avoid stacking old/new text — clipped leftovers looked like white dots.
-                            layoutBuilder: (currentChild, _) =>
-                                currentChild ?? const SizedBox.shrink(),
-                            transitionBuilder: (child, animation) {
-                              final slide = Tween<Offset>(
-                                begin: const Offset(0, 0.08),
-                                end: Offset.zero,
-                              ).animate(animation);
-                              return FadeTransition(
-                                opacity: animation,
-                                child: SlideTransition(
-                                  position: slide,
-                                  child: child,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Spacer(),
+                      AnimatedBuilder(
+                        animation: _enter,
+                        builder: (context, child) {
+                          return Opacity(
+                            opacity: _uiReady ? fade.value : 0,
+                            child: Transform.translate(
+                              offset: Offset(0, lift.value),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _CrossfadeCopy(carousel: carousel),
+                            const SizedBox(height: 28),
+                            _PrimaryCta(
+                              label: 'Get started',
+                              onTap: _goSignUp,
+                            ),
+                            const SizedBox(height: 12),
+                            _SecondaryCta(
+                              label: 'I already have an account',
+                              onTap: _goSignIn,
+                            ),
+                            const SizedBox(height: 18),
+                            Text.rich(
+                              TextSpan(
+                                text: 'By continuing you agree to the ',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  height: 1.45,
+                                  color: Colors.white.withValues(alpha: 0.62),
                                 ),
-                              );
-                            },
-                            child: Text(
-                              _headlines[_headlineIndex],
-                              key: ValueKey(_headlineIndex),
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.fraunces(
-                                fontSize: 34,
-                                fontWeight: FontWeight.w500,
-                                height: 1.18,
-                                letterSpacing: -0.4,
-                                color: Colors.white,
-                                shadows: [
-                                  Shadow(
-                                    color:
-                                        Colors.black.withValues(alpha: 0.45),
-                                    blurRadius: 24,
-                                    offset: const Offset(0, 6),
+                                children: [
+                                  TextSpan(
+                                    text: 'Terms',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 11,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor:
+                                          Colors.white.withValues(alpha: 0.7),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.88),
+                                    ),
                                   ),
+                                  const TextSpan(text: ', '),
+                                  TextSpan(
+                                    text: 'Privacy Policy',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 11,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor:
+                                          Colors.white.withValues(alpha: 0.7),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.88),
+                                    ),
+                                  ),
+                                  const TextSpan(text: ' & '),
+                                  TextSpan(
+                                    text: 'Community Guidelines',
+                                    style: GoogleFonts.dmSans(
+                                      fontSize: 11,
+                                      decoration: TextDecoration.underline,
+                                      decorationColor:
+                                          Colors.white.withValues(alpha: 0.7),
+                                      color:
+                                          Colors.white.withValues(alpha: 0.88),
+                                    ),
+                                  ),
+                                  const TextSpan(text: '.'),
                                 ],
                               ),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Good people. One table.\nZero planning.',
-                            textAlign: TextAlign.center,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 15,
-                              height: 1.45,
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white.withValues(alpha: 0.86),
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          _PrimaryCta(
-                            label: 'Get started',
-                            onTap: _goSignUp,
-                          ),
-                          const SizedBox(height: 12),
-                          _SecondaryCta(
-                            label: 'I already have an account',
-                            onTap: _goSignIn,
-                          ),
-                          const SizedBox(height: 18),
-                          Text.rich(
-                            TextSpan(
-                              text: 'By continuing you agree to the ',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 11,
-                                height: 1.45,
-                                color: Colors.white.withValues(alpha: 0.62),
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: 'Terms',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 11,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor:
-                                        Colors.white.withValues(alpha: 0.7),
-                                    color: Colors.white.withValues(alpha: 0.88),
-                                  ),
-                                ),
-                                const TextSpan(text: ', '),
-                                TextSpan(
-                                  text: 'Privacy Policy',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 11,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor:
-                                        Colors.white.withValues(alpha: 0.7),
-                                    color: Colors.white.withValues(alpha: 0.88),
-                                  ),
-                                ),
-                                const TextSpan(text: ' & '),
-                                TextSpan(
-                                  text: 'Community Guidelines',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 11,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor:
-                                        Colors.white.withValues(alpha: 0.7),
-                                    color: Colors.white.withValues(alpha: 0.88),
-                                  ),
-                                ),
-                                const TextSpan(text: '.'),
-                              ],
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),
@@ -336,33 +299,164 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 }
 
-class _MediaBackdrop extends StatelessWidget {
-  const _MediaBackdrop({
-    required this.useVideo,
-    required this.video,
-  });
+class _CarouselBackdrop extends StatelessWidget {
+  const _CarouselBackdrop({required this.carousel});
 
-  final bool useVideo;
-  final VideoPlayerController? video;
+  final WelcomeCarouselController carousel;
 
   @override
   Widget build(BuildContext context) {
-    if (useVideo && video != null && video!.value.isInitialized) {
-      return ColoredBox(
-        color: NytoColors.brandInk,
-        child: FittedBox(
-          fit: BoxFit.cover,
-          clipBehavior: Clip.hardEdge,
-          child: SizedBox(
-            width: video!.value.size.width,
-            height: video!.value.size.height,
-            child: VideoPlayer(video!),
-          ),
-        ),
-      );
+    return AnimatedBuilder(
+      animation: carousel.crossfade,
+      builder: (context, _) {
+        final t = carousel.isTransitioning ? carousel.crossfade.value : 0.0;
+        final active = carousel.activeIndex;
+        final incoming = carousel.incomingIndex;
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            _VideoFill(
+              controller: carousel.controllers[active],
+              opacity: 1 - t,
+            ),
+            if (carousel.isTransitioning)
+              _VideoFill(
+                controller: carousel.controllers[incoming],
+                opacity: t,
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _VideoFill extends StatelessWidget {
+  const _VideoFill({
+    required this.controller,
+    required this.opacity,
+  });
+
+  final VideoPlayerController controller;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!controller.value.isInitialized) {
+      return const ColoredBox(color: NytoColors.brandInk);
     }
 
-    return const ColoredBox(color: NytoColors.brandInk);
+    final vw = controller.value.size.width;
+    final vh = controller.value.size.height;
+    if (vw <= 0 || vh <= 0) {
+      return const ColoredBox(color: NytoColors.brandInk);
+    }
+
+    return Opacity(
+      opacity: opacity.clamp(0.0, 1.0),
+      child: ColoredBox(
+        color: NytoColors.brandInk,
+        child: SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: vw,
+              height: vh,
+              child: VideoPlayer(controller),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CrossfadeCopy extends StatelessWidget {
+  const _CrossfadeCopy({required this.carousel});
+
+  final WelcomeCarouselController carousel;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: carousel.crossfade,
+      builder: (context, _) {
+        final t = carousel.isTransitioning ? carousel.crossfade.value : 0.0;
+        final active = carousel.clips[carousel.activeIndex];
+        final incoming = carousel.clips[carousel.incomingIndex];
+
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            Opacity(
+              opacity: 1 - t,
+              child: _CopyBlock(
+                headline: active.headline,
+                caption: active.caption,
+              ),
+            ),
+            if (carousel.isTransitioning)
+              Opacity(
+                opacity: t,
+                child: _CopyBlock(
+                  headline: incoming.headline,
+                  caption: incoming.caption,
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CopyBlock extends StatelessWidget {
+  const _CopyBlock({
+    required this.headline,
+    required this.caption,
+  });
+
+  final String headline;
+  final String caption;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          headline,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.fraunces(
+            fontSize: 34,
+            fontWeight: FontWeight.w500,
+            height: 1.18,
+            letterSpacing: -0.4,
+            color: Colors.white,
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: 0.45),
+                blurRadius: 24,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          caption,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.dmSans(
+            fontSize: 15,
+            height: 1.45,
+            fontWeight: FontWeight.w400,
+            color: Colors.white.withValues(alpha: 0.86),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -385,7 +479,6 @@ class _CinematicScrim extends StatelessWidget {
               Colors.black.withValues(alpha: 0.94),
               Colors.black,
             ],
-            // Heavy veil under CTAs / legal — video soft-fades out like Timeleft.
             stops: const [0.0, 0.28, 0.48, 0.62, 0.78, 1.0],
           ),
         ),
@@ -455,7 +548,6 @@ class _SecondaryCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Light glass without BackdropFilter — blur janks hard on emulator GPUs.
     return SizedBox(
       height: 56,
       child: Material(

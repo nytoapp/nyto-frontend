@@ -47,17 +47,15 @@ abstract final class WelcomeVideoClip {
     ),
     WelcomeClipConfig(
       assetPath: 'assets/video/welcome_03.mp4',
-      loopEnd: Duration(milliseconds: 7000),
+      loopEnd: Duration(milliseconds: 7480),
       headline: 'You choose\nthe experience.',
-      caption:
-          'Dinner, workout, lunch, party, supper club—or whatever you want to bring to life.',
+      caption: 'Dinner, runs, parties—or create your own.',
     ),
     WelcomeClipConfig(
       assetPath: 'assets/video/welcome_04.mp4',
-      loopEnd: Duration(milliseconds: 7000),
+      loopEnd: Duration(milliseconds: 7480),
       headline: 'Host it. Join it.\nBuild your people.',
-      caption:
-          'Pick the place, set the rules, choose the price, invite your crowd—and grow your community.',
+      caption: 'Set the vibe, invite your crowd—grow together.',
     ),
   ];
 
@@ -148,7 +146,7 @@ abstract final class WelcomeVideoClip {
 }
 
 /// Drives clip playback → soft crossfade → next clip (loops).
-class WelcomeCarouselController {
+class WelcomeCarouselController extends ChangeNotifier {
   WelcomeCarouselController({
     required this.session,
     required TickerProvider vsync,
@@ -191,6 +189,12 @@ class WelcomeCarouselController {
   List<VideoPlayerController> get controllers => _controllers;
 
   WelcomeClipConfig get activeClip => _clips[_activeIndex];
+
+  /// Clip whose copy should show — locked to the same crossfade moment as video.
+  int get displayClipIndex {
+    if (!_isTransitioning) return _activeIndex;
+    return crossfade.value >= 0.5 ? _incomingIndex : _activeIndex;
+  }
 
   void _onCrossfadeStatus(AnimationStatus status) {
     if (status == AnimationStatus.completed) {
@@ -240,6 +244,7 @@ class WelcomeCarouselController {
     } catch (_) {
       _isTransitioning = false;
       _crossfade.value = 0;
+      notifyListeners();
       await _restartSingle(_controllers[_activeIndex]);
     }
   }
@@ -265,6 +270,7 @@ class WelcomeCarouselController {
     _activeIndex = _incomingIndex;
     _isTransitioning = false;
     _crossfade.value = 0;
+    notifyListeners();
   }
 
   void resumePlayback() {
@@ -274,10 +280,12 @@ class WelcomeCarouselController {
     }
   }
 
+  @override
   void dispose() {
     _crossfade.dispose();
     for (final c in _controllers) {
       c.removeListener(_onVideoTick);
     }
+    super.dispose();
   }
 }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/media/welcome_video_clip.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
@@ -48,6 +49,10 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _warmWelcomeCarousel() async {
+    await GoogleFonts.pendingFonts([
+      GoogleFonts.fraunces(fontWeight: FontWeight.w500),
+      GoogleFonts.dmSans(fontWeight: FontWeight.w400),
+    ]);
     final session = await WelcomeVideoClip.createCarousel();
     if (session == null || !mounted) {
       if (session != null) {

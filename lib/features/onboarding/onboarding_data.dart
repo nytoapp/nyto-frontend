@@ -1,3 +1,7 @@
+import 'package:flutter/material.dart';
+
+import 'package:nyto_app/features/onboarding/models/bubble_carousel_item.dart';
+
 /// Shared onboarding state for the short Get started → home path.
 class OnboardingData {
   /// Goals → … → notifications (verification is at booking / Profile).
@@ -7,6 +11,7 @@ class OnboardingData {
   static const maxInterests = 5;
 
   final Set<String> goals = {};
+  final Set<String> nightPreferences = {};
   String? gender;
   String authMethod = 'email'; // email | google
   String? googleAccount;
@@ -43,6 +48,9 @@ class OnboardingData {
     if (name.isNotEmpty) body['firstName'] = name;
     if (gender != null && gender!.isNotEmpty) body['gender'] = gender;
     if (interests.isNotEmpty) body['interests'] = interests.toList();
+    if (nightPreferences.isNotEmpty) {
+      body['nightPreferences'] = nightPreferences.toList();
+    }
     if (dateOfBirth != null && dateOfBirth!.isNotEmpty) {
       body['dateOfBirth'] = dateOfBirth;
     }
@@ -92,34 +100,79 @@ class InterestGroup {
 class OnboardingOptions {
   static const goals = <({String id, String label, String hint})>[
     (
-      id: 'new_faces',
-      label: 'Meet new faces',
-      hint: 'Sit with people you wouldn’t meet otherwise',
+      id: 'discover',
+      label: 'Discover',
+      hint: 'Show me experiences worth going to.',
     ),
     (
-      id: 'real_talk',
-      label: 'Real conversation',
-      hint: 'Skip small talk. Go deeper at the table',
+      id: 'meet',
+      label: 'Meet',
+      hint: 'I want to meet interesting new people.',
     ),
     (
-      id: 'city_nights',
-      label: 'Hyderabad nights',
-      hint: 'A standing dinner ritual in your city',
+      id: 'join',
+      label: 'Join',
+      hint: 'I want to be part of communities and groups.',
     ),
     (
-      id: 'zero_plan',
-      label: 'Zero planning',
-      hint: 'We seat the table. You just show up',
+      id: 'host',
+      label: 'Host',
+      hint: 'I want to create experiences for others.',
     ),
     (
-      id: 'women_circle',
-      label: 'Women-led tables',
-      hint: 'Prefer evenings curated for women',
+      id: 'build',
+      label: 'Build',
+      hint: 'I want to grow my own community.',
     ),
     (
-      id: 'curiosity',
-      label: 'Stay curious',
-      hint: 'Different professions, same dinner',
+      id: 'surprise_me',
+      label: 'Surprise Me',
+      hint: 'Take me somewhere I wouldn’t find myself.',
+    ),
+  ];
+
+  static final nightPreferences = <BubbleCarouselItem>[
+    const BubbleCarouselItem(
+      id: 'dinner_supper',
+      title: 'Dinner & Supper Clubs',
+      description: 'Good food. New people. Great conversations.',
+      icon: Icons.restaurant_rounded,
+    ),
+    const BubbleCarouselItem(
+      id: 'drinks_nightlife',
+      title: 'Drinks & Nightlife',
+      description: 'Bars, lounges, parties and late nights.',
+      icon: Icons.local_bar_rounded,
+    ),
+    const BubbleCarouselItem(
+      id: 'fitness_wellness',
+      title: 'Fitness & Wellness',
+      description: 'Workouts, runs, sports and active experiences.',
+      icon: Icons.fitness_center_rounded,
+    ),
+    const BubbleCarouselItem(
+      id: 'lunch_day',
+      title: 'Lunch & Day Plans',
+      description: 'Brunches, lunches and daytime experiences.',
+      icon: Icons.wb_sunny_rounded,
+    ),
+    const BubbleCarouselItem(
+      id: 'parties_celebrations',
+      title: 'Parties & Celebrations',
+      description: 'Something social, energetic and fun.',
+      icon: Icons.celebration_rounded,
+    ),
+    const BubbleCarouselItem(
+      id: 'interesting_people',
+      title: 'Interesting People',
+      description: 'Founders, creatives, professionals and communities.',
+      icon: Icons.groups_rounded,
+    ),
+    const BubbleCarouselItem(
+      id: 'something_different',
+      title: 'Something Different',
+      description: 'Give me experiences I wouldn’t normally find.',
+      icon: Icons.auto_awesome_rounded,
     ),
   ];
 

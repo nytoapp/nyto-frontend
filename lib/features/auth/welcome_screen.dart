@@ -224,7 +224,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _CrossfadeCopy(carousel: carousel),
+                            _SlideCopy(carousel: carousel),
                             const SizedBox(height: 28),
                             _PrimaryCta(
                               label: 'Get started',
@@ -373,8 +373,9 @@ class _VideoFill extends StatelessWidget {
   }
 }
 
-class _CrossfadeCopy extends StatelessWidget {
-  const _CrossfadeCopy({required this.carousel});
+/// Copy synced to video crossfade — swaps at 50% (same moment as dominant video).
+class _SlideCopy extends StatelessWidget {
+  const _SlideCopy({required this.carousel});
 
   final WelcomeCarouselController carousel;
 
@@ -383,29 +384,12 @@ class _CrossfadeCopy extends StatelessWidget {
     return AnimatedBuilder(
       animation: carousel.crossfade,
       builder: (context, _) {
-        final t = carousel.isTransitioning ? carousel.crossfade.value : 0.0;
-        final active = carousel.clips[carousel.activeIndex];
-        final incoming = carousel.clips[carousel.incomingIndex];
+        final clip = carousel.clips[carousel.displayClipIndex];
 
-        return Stack(
-          alignment: Alignment.center,
-          children: [
-            Opacity(
-              opacity: 1 - t,
-              child: _CopyBlock(
-                headline: active.headline,
-                caption: active.caption,
-              ),
-            ),
-            if (carousel.isTransitioning)
-              Opacity(
-                opacity: t,
-                child: _CopyBlock(
-                  headline: incoming.headline,
-                  caption: incoming.caption,
-                ),
-              ),
-          ],
+        return _CopyBlock(
+          key: ValueKey(carousel.displayClipIndex),
+          headline: clip.headline,
+          caption: clip.caption,
         );
       },
     );
@@ -414,6 +398,7 @@ class _CrossfadeCopy extends StatelessWidget {
 
 class _CopyBlock extends StatelessWidget {
   const _CopyBlock({
+    super.key,
     required this.headline,
     required this.caption,
   });
@@ -437,9 +422,9 @@ class _CopyBlock extends StatelessWidget {
             color: Colors.white,
             shadows: [
               Shadow(
-                color: Colors.black.withValues(alpha: 0.45),
-                blurRadius: 24,
-                offset: const Offset(0, 6),
+                color: Colors.black.withValues(alpha: 0.32),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
               ),
             ],
           ),

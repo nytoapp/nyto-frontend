@@ -44,8 +44,8 @@ class _GoalsStepState extends State<GoalsStep> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const OnboardingTitle(
-            'What brings you to the table?',
-            subtitle: 'Pick up to two. We’ll seat you with that energy.',
+            'How do you want to NYTO?',
+            subtitle: 'Pick up to two. You can always change this later.',
           ),
           const SizedBox(height: 28),
           Expanded(

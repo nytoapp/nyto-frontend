@@ -13,7 +13,7 @@ import 'package:nyto_app/features/onboarding/steps/goals_step.dart';
 import 'package:nyto_app/features/onboarding/steps/interests_step.dart';
 import 'package:nyto_app/features/onboarding/steps/notifications_step.dart';
 import 'package:nyto_app/features/onboarding/steps/phone_step.dart';
-import 'package:nyto_app/features/onboarding/steps/social_proof_step.dart';
+import 'package:nyto_app/features/onboarding/steps/night_preferences_step.dart';
 import 'package:nyto_app/features/onboarding/steps/we_know_you_step.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
@@ -51,8 +51,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     );
   }
 
-  void _toSocialProof() => _open(
-        SocialProofStep(onContinue: _toGender),
+  void _toNightPreferences() => _open(
+        NightPreferencesStep(data: _data, onContinue: _toGender),
       );
 
   void _toGender() => _open(
@@ -100,7 +100,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   Widget build(BuildContext context) {
     return GoalsStep(
       data: _data,
-      onContinue: _toSocialProof,
+      onContinue: _toNightPreferences,
     );
   }
 }

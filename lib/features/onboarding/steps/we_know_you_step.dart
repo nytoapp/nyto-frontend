@@ -83,7 +83,7 @@ class _WeKnowYouStepState extends State<WeKnowYouStep>
     );
 
     return OnboardingScaffold(
-      step: 11,
+      step: 10,
       totalSteps: OnboardingData.totalSteps,
       footer: FadeTransition(
         opacity: cardT,

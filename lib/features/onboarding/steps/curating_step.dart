@@ -115,7 +115,7 @@ class _CuratingStepState extends State<CuratingStep>
     );
 
     return OnboardingScaffold(
-      step: 10,
+      step: 9,
       totalSteps: OnboardingData.totalSteps,
       child: AnimatedBuilder(
         animation: Listenable.merge([_breath, _ring]),

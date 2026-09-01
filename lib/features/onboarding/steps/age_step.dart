@@ -124,7 +124,7 @@ class _AgeStepState extends State<AgeStep> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      step: 7,
+      step: 6,
       totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',

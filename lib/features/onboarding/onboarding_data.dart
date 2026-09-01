@@ -5,7 +5,7 @@ import 'package:nyto_app/features/onboarding/models/bubble_carousel_item.dart';
 /// Shared onboarding state for the short Get started → home path.
 class OnboardingData {
   /// Goals → … → notifications (verification is at booking / Profile).
-  static const totalSteps = 12;
+  static const totalSteps = 11;
 
   /// Max interests at signup; deeper topics come at booking.
   static const maxInterests = 5;
@@ -13,8 +13,9 @@ class OnboardingData {
   final Set<String> goals = {};
   final Set<String> nightPreferences = {};
   String? gender;
-  String authMethod = 'email'; // email | google
+  String authMethod = 'phone'; // phone | google | apple
   String? googleAccount;
+  String? appleAccount;
   String email = '';
   String firstName = '';
   String phone = '';

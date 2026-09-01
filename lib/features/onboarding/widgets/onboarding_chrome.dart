@@ -16,6 +16,7 @@ class OnboardingScaffold extends StatelessWidget {
     this.onBack,
     this.footer,
     this.showProgress = true,
+    this.resizeForKeyboard = false,
   });
 
   final int step;
@@ -24,6 +25,7 @@ class OnboardingScaffold extends StatelessWidget {
   final VoidCallback? onBack;
   final Widget? footer;
   final bool showProgress;
+  final bool resizeForKeyboard;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +38,7 @@ class OnboardingScaffold extends StatelessWidget {
       ),
       child: Scaffold(
         backgroundColor: NytoColors.brandInk,
+        resizeToAvoidBottomInset: resizeForKeyboard,
         body: Stack(
           children: [
             const NytoAmbientField(intense: true),

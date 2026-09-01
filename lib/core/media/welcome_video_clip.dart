@@ -93,6 +93,26 @@ abstract final class WelcomeVideoClip {
     }
   }
 
+  /// Warm first clip only — full carousel loads on welcome after navigate.
+  static Future<({VideoPlayerController controller, String assetPath})?>
+      warmFirstClip() async {
+    final available = await availableClips();
+    if (available.isEmpty) return null;
+
+    final clip = available.first;
+    final controller = await _initController(clip.assetPath);
+    if (controller == null) return null;
+
+    try {
+      await controller.play();
+    } catch (_) {
+      await controller.dispose();
+      return null;
+    }
+
+    return (controller: controller, assetPath: clip.assetPath);
+  }
+
   /// Warm every available clip in parallel; starts playback on clip 0.
   static Future<WelcomeCarouselSession?> createCarousel({
     VideoPlayerController? preloadedFirst,
@@ -103,24 +123,36 @@ abstract final class WelcomeVideoClip {
 
     final controllers = <VideoPlayerController>[];
     try {
-      for (var i = 0; i < available.length; i++) {
-        final clip = available[i];
-        final reuse = i == 0 &&
-            preloadedFirst != null &&
-            preloadedFirst.value.isInitialized &&
-            (preloadedAssetPath == null ||
-                preloadedAssetPath == clip.assetPath);
-        if (reuse) {
-          controllers.add(preloadedFirst);
-          continue;
+      if (preloadedFirst != null &&
+          preloadedFirst.value.isInitialized &&
+          available.isNotEmpty &&
+          (preloadedAssetPath == null ||
+              preloadedAssetPath == available.first.assetPath)) {
+        controllers.add(preloadedFirst);
+        final rest = await Future.wait(
+          available.skip(1).map((clip) => _initController(clip.assetPath)),
+        );
+        for (final controller in rest) {
+          if (controller == null) {
+            await _disposeAll(controllers, keep: preloadedFirst);
+            return null;
+          }
+          controllers.add(controller);
         }
-        final controller = await _initController(clip.assetPath);
-        if (controller == null) {
-          await _disposeAll(controllers, keep: preloadedFirst);
-          return null;
+      } else {
+        final initialized = await Future.wait(
+          available.map((clip) => _initController(clip.assetPath)),
+        );
+        for (final controller in initialized) {
+          if (controller == null) {
+            await _disposeAll(controllers);
+            return null;
+          }
+          controllers.add(controller);
         }
-        controllers.add(controller);
       }
+
+      if (controllers.isEmpty) return null;
 
       await controllers.first.play();
       return WelcomeCarouselSession(

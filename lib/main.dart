@@ -7,5 +7,7 @@ Future<void> main() async {
   await SystemChrome.setPreferredOrientations(const [
     DeviceOrientation.portraitUp,
   ]);
+  // Warm boot art into memory before first Flutter frame paints.
+  await rootBundle.load('assets/brand/nyto_boot_splash.png');
   runApp(const NytoApp());
 }

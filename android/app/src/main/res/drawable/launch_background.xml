@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Same NYTO art as BootActivity ImageView — not a second look. -->
+<!-- Full-bleed NYTO boot art — matches Flutter splash / MainActivity cover. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/nyto_ground" />
     <item>
         <bitmap
-            android:gravity="center"
+            android:gravity="fill"
             android:src="@drawable/nyto_boot_splash" />
     </item>
 </layer-list>

@@ -17,6 +17,7 @@ class WelcomeScreen extends StatefulWidget {
     this.preloadedSession,
     this.preloadedFirst,
     this.preloadedAssetPath,
+    this.fromSplashHandoff = false,
   });
 
   /// Full carousel warmed on splash (preferred).
@@ -26,6 +27,9 @@ class WelcomeScreen extends StatefulWidget {
   final VideoPlayerController? preloadedFirst;
   final String? preloadedAssetPath;
 
+  /// Splash → welcome instant swap: welcome is fully painted on first frame.
+  final bool fromSplashHandoff;
+
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
@@ -33,7 +37,6 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
   static const _bootArt = 'assets/brand/nyto_boot_splash.png';
-  static const _bootChannel = MethodChannel('nyto/boot');
 
   WelcomeCarouselSession? _session;
   WelcomeCarouselController? _carousel;
@@ -61,9 +64,97 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _revealUi();
       });
+    } else if (widget.fromSplashHandoff &&
+        widget.preloadedFirst != null &&
+        widget.preloadedFirst!.value.isInitialized) {
+      _primeHandoffFromSplash(
+        widget.preloadedFirst!,
+        widget.preloadedAssetPath,
+      );
+      _uiReady = true;
+      _enter.value = 1.0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(_loadFullCarouselInBackground(
+          widget.preloadedFirst!,
+          widget.preloadedAssetPath,
+        ));
+      });
+    } else if (widget.preloadedFirst != null &&
+        widget.preloadedFirst!.value.isInitialized) {
+      unawaited(_bootstrapWithFirstClip(
+        widget.preloadedFirst!,
+        widget.preloadedAssetPath,
+      ));
     } else {
       _bootMedia();
     }
+  }
+
+  void _primeHandoffFromSplash(
+    VideoPlayerController first,
+    String? assetPath,
+  ) {
+    WelcomeClipConfig clip = WelcomeVideoClip.clips.first;
+    if (assetPath != null) {
+      for (final c in WelcomeVideoClip.clips) {
+        if (c.assetPath == assetPath) {
+          clip = c;
+          break;
+        }
+      }
+    }
+    _session = WelcomeCarouselSession(
+      clips: [clip],
+      controllers: [first],
+    );
+    _ownsSession = false;
+    _useVideo = true;
+    _startCarousel();
+  }
+
+  Future<void> _bootstrapWithFirstClip(
+    VideoPlayerController first,
+    String? assetPath,
+  ) async {
+    final available = await WelcomeVideoClip.availableClips();
+    if (!mounted || available.isEmpty) return;
+
+    final clip = available.firstWhere(
+      (c) => assetPath == null || c.assetPath == assetPath,
+      orElse: () => available.first,
+    );
+
+    _session = WelcomeCarouselSession(
+      clips: [clip],
+      controllers: [first],
+    );
+    _ownsSession = false;
+    _useVideo = true;
+    _startCarousel();
+
+    if (!mounted) return;
+    _revealUi();
+
+    unawaited(_loadFullCarouselInBackground(first, assetPath));
+  }
+
+  Future<void> _loadFullCarouselInBackground(
+    VideoPlayerController first,
+    String? assetPath,
+  ) async {
+    final full = await WelcomeVideoClip.createCarousel(
+      preloadedFirst: first,
+      preloadedAssetPath: assetPath,
+    );
+    if (!mounted || full == null || full.controllers.length <= 1) return;
+
+    final previousCarousel = _carousel;
+    _session = full;
+    _ownsSession = true;
+    _startCarousel();
+    previousCarousel?.dispose();
+    setState(() {});
   }
 
   void _setSystemUi() {
@@ -131,15 +222,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (!mounted) return;
     setState(() => _uiReady = true);
     _enter.forward(from: 0);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _dropNativeBridge();
-    });
-  }
-
-  Future<void> _dropNativeBridge() async {
-    try {
-      await _bootChannel.invokeMethod<void>('dropBridge');
-    } catch (_) {}
   }
 
   void _goSignUp() {
@@ -194,7 +276,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
               _CarouselBackdrop(carousel: carousel)
             else
               const ColoredBox(color: NytoColors.brandInk),
-            if (!_uiReady)
+            if (!_uiReady && !widget.fromSplashHandoff)
               const Image(
                 image: AssetImage(_bootArt),
                 fit: BoxFit.cover,

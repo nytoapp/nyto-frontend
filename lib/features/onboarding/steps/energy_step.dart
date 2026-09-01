@@ -95,7 +95,7 @@ class _EnergyStepState extends State<EnergyStep>
     );
 
     return OnboardingScaffold(
-      step: 8,
+      step: 7,
       totalSteps: OnboardingData.totalSteps,
       footer: FadeTransition(
         opacity: enter,

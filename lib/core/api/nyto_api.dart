@@ -39,6 +39,33 @@ class AuthApi {
     return json;
   }
 
+  Future<Map<String, dynamic>> requestPhoneOtp(String phone) {
+    return _api
+        .post('/auth/phone/otp/request', body: {'phone': phone})
+        .timeout(timeout);
+  }
+
+  Future<Map<String, dynamic>> verifyPhoneOtp({
+    required String phone,
+    required String code,
+  }) async {
+    final json = await _api
+        .post('/auth/phone/otp/verify', body: {'phone': phone, 'code': code})
+        .timeout(timeout);
+    final token = json['token'] as String?;
+    if (token != null) await _api.saveToken(token);
+    return json;
+  }
+
+  Future<Map<String, dynamic>> appleSignIn(String idToken) async {
+    final json = await _api
+        .post('/auth/apple', body: {'idToken': idToken})
+        .timeout(timeout);
+    final token = json['token'] as String?;
+    if (token != null) await _api.saveToken(token);
+    return json;
+  }
+
   Future<Map<String, dynamic>> requestEmailOtp(String email) {
     return _api
         .post('/auth/email/otp/request', body: {'email': email})

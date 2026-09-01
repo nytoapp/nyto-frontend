@@ -39,7 +39,7 @@ class _InterestsStepState extends State<InterestsStep> {
     final items = OnboardingOptions.interests;
 
     return OnboardingScaffold(
-      step: 9,
+      step: 8,
       totalSteps: OnboardingData.totalSteps,
       footer: NytoPrimaryButton(
         label: 'Continue',

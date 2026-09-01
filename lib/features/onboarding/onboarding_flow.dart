@@ -12,7 +12,6 @@ import 'package:nyto_app/features/onboarding/steps/gender_step.dart';
 import 'package:nyto_app/features/onboarding/steps/goals_step.dart';
 import 'package:nyto_app/features/onboarding/steps/interests_step.dart';
 import 'package:nyto_app/features/onboarding/steps/notifications_step.dart';
-import 'package:nyto_app/features/onboarding/steps/phone_step.dart';
 import 'package:nyto_app/features/onboarding/steps/night_preferences_step.dart';
 import 'package:nyto_app/features/onboarding/steps/we_know_you_step.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
@@ -64,11 +63,7 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       );
 
   void _toFirstName() => _open(
-        FirstNameStep(data: _data, onContinue: _toPhone),
-      );
-
-  void _toPhone() => _open(
-        PhoneStep(data: _data, onContinue: _toAge),
+        FirstNameStep(data: _data, onContinue: _toAge),
       );
 
   void _toAge() => _open(

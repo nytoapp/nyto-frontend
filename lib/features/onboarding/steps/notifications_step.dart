@@ -52,7 +52,7 @@ class _NotificationsStepState extends State<NotificationsStep>
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      step: 12,
+      step: 11,
       totalSteps: OnboardingData.totalSteps,
       footer: Column(
         children: [

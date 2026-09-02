@@ -14,7 +14,7 @@ class ChatSocket {
     final existing = _socket;
     if (existing != null && existing.connected) return existing;
 
-    final token = await apiClient.getToken();
+    final token = (await apiClient.currentTokens())?.accessToken;
     if (token == null || token.isEmpty) {
       throw StateError('Not signed in');
     }

@@ -16,9 +16,7 @@ class ChatApi {
   }
 
   Future<Map<String, dynamic>> tableConversation(String tableId) {
-    return _api
-        .get('/chat/tables/$tableId', auth: true)
-        .timeout(timeout);
+    return _api.get('/chat/tables/$tableId', auth: true).timeout(timeout);
   }
 
   Future<Map<String, dynamic>> messages(
@@ -52,11 +50,7 @@ class ChatApi {
 
   Future<List<Map<String, dynamic>>> directConversations(String inbox) async {
     final json = await _api
-        .get(
-          '/chat/direct',
-          auth: true,
-          query: {'inbox': inbox},
-        )
+        .get('/chat/direct', auth: true, query: {'inbox': inbox})
         .timeout(timeout);
     final list = json['conversations'];
     if (list is! List) return [];

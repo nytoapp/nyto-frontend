@@ -3,7 +3,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/api/api_client.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
-import 'package:nyto_app/core/auth/google_auth.dart';
+import 'package:nyto_app/core/auth/providers/facebook_auth.dart';
+import 'package:nyto_app/core/auth/providers/google_auth.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
@@ -106,7 +107,10 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
   Future<void> _logOut() async {
     if (_loggingOut) return;
     setState(() => _loggingOut = true);
+    // Clear the provider sessions too, so the next sign-in re-prompts instead
+    // of silently reusing whoever was signed in before.
     await NytoGoogleAuth.signOut();
+    await NytoFacebookAuth.signOut();
     await NytoSession.signOut();
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
@@ -128,6 +132,7 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
     try {
       await authApi.deleteMe();
       await NytoGoogleAuth.signOut();
+      await NytoFacebookAuth.signOut();
       await NytoSession.signOut();
       if (!mounted) return;
       Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(

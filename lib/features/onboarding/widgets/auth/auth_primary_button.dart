@@ -30,7 +30,8 @@ class _AuthPrimaryButtonState extends State<AuthPrimaryButton> {
 
   @override
   Widget build(BuildContext context) {
-    final active = widget.enabled && !widget.loading && widget.onPressed != null;
+    final active =
+        widget.enabled && !widget.loading && widget.onPressed != null;
     final scale = _pressed && active ? 0.985 : 1.0;
 
     return Semantics(
@@ -83,7 +84,9 @@ class _AuthPrimaryButtonState extends State<AuthPrimaryButton> {
                     ),
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: AuthTokens.space20),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AuthTokens.space20,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -105,11 +108,7 @@ class _AuthPrimaryButtonState extends State<AuthPrimaryButton> {
                           shape: BoxShape.circle,
                           color: Colors.white.withValues(alpha: 0.14),
                         ),
-                        child: Icon(
-                          widget.icon,
-                          size: 17,
-                          color: Colors.white,
-                        ),
+                        child: Icon(widget.icon, size: 17, color: Colors.white),
                       ),
                     if (widget.loading || widget.icon != null)
                       const SizedBox(width: AuthTokens.space12),

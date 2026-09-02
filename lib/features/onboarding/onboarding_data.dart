@@ -13,9 +13,10 @@ class OnboardingData {
   final Set<String> goals = {};
   final Set<String> nightPreferences = {};
   String? gender;
-  String authMethod = 'phone'; // phone | google | apple
+  String authMethod = 'phone'; // phone | google | apple | facebook
   String? googleAccount;
   String? appleAccount;
+  String? facebookAccount;
   String email = '';
   String firstName = '';
   String phone = '';
@@ -309,5 +310,9 @@ class OnboardingOptions {
     CountryDial(code: 'DE', name: 'Germany', dial: '+49', flag: '🇩🇪', minLen: 10, maxLen: 12),
     CountryDial(code: 'CA', name: 'Canada', dial: '+1', flag: '🇨🇦', minLen: 10, maxLen: 10),
     CountryDial(code: 'FR', name: 'France', dial: '+33', flag: '🇫🇷', minLen: 9, maxLen: 9),
+    CountryDial(code: 'IT', name: 'Italy', dial: '+39', flag: '🇮🇹', minLen: 9, maxLen: 10),
+    CountryDial(code: 'ES', name: 'Spain', dial: '+34', flag: '🇪🇸', minLen: 9, maxLen: 9),
+    CountryDial(code: 'NL', name: 'Netherlands', dial: '+31', flag: '🇳🇱', minLen: 9, maxLen: 9),
+    CountryDial(code: 'ZA', name: 'South Africa', dial: '+27', flag: '🇿🇦', minLen: 9, maxLen: 9),
   ];
 }

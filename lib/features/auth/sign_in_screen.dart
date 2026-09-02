@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:nyto_app/app/session.dart';
-import 'package:nyto_app/core/api/api_client.dart';
-import 'package:nyto_app/core/api/nyto_api.dart';
-import 'package:nyto_app/core/auth/google_auth.dart';
-import 'package:nyto_app/core/config/app_env.dart';
+import 'package:nyto_app/core/auth/auth_failure.dart';
+import 'package:nyto_app/core/auth/auth_repository.dart';
+import 'package:nyto_app/core/auth/providers/google_auth.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/onboarding/widgets/google_g_logo.dart';
@@ -29,7 +27,6 @@ class _SignInScreenState extends State<SignInScreen> {
 
   bool _otpSent = false;
   bool _loading = false;
-  String? _devOtpHint;
   String? _error;
 
   @override
@@ -46,10 +43,26 @@ class _SignInScreenState extends State<SignInScreen> {
     return RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(e);
   }
 
-  String _reachError() =>
-      'Could not reach NYTO. Is the server running? On a phone, run adb reverse tcp:3000 tcp:3000.';
+  /// Reports a failure, treating user cancellation as a silent no-op.
+  void _handleFailure(Object error) {
+    if (!mounted) return;
+    final failure = describeAuthError(error);
+    setState(() {
+      _loading = false;
+      _error = failure.isCancellation ? null : failure.message;
+    });
+  }
+
+  void _goHome() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
+      (_) => false,
+    );
+  }
 
   Future<void> _sendOtp() async {
+    if (_loading) return;
     if (!_emailValid) {
       setState(() => _error = 'Enter a valid email address.');
       return;
@@ -57,46 +70,22 @@ class _SignInScreenState extends State<SignInScreen> {
     setState(() {
       _loading = true;
       _error = null;
-      _devOtpHint = null;
     });
-    final email = _emailController.text.trim();
     try {
-      final json = await authApi.requestEmailOtp(email);
+      await authRepository.requestEmailCode(_emailController.text.trim());
       if (!mounted) return;
       setState(() {
         _loading = false;
         _otpSent = true;
-        final hint = json['devOtp'] as String?;
-        if (AppEnv.allowDevOtp && hint != null && hint.isNotEmpty) {
-          _devOtpHint = hint;
-        }
       });
       _otpFocus.requestFocus();
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      if (AppEnv.allowDevOtp) {
-        setState(() {
-          _loading = false;
-          _otpSent = true;
-          _devOtpHint = AppEnv.devOtp;
-        });
-        _otpFocus.requestFocus();
-        return;
-      }
-      setState(() {
-        _loading = false;
-        _error = _reachError();
-      });
+    } catch (error) {
+      _handleFailure(error);
     }
   }
 
   Future<void> _verifyOtp() async {
+    if (_loading) return;
     final otp = _otpController.text.trim();
     if (otp.length != 6) {
       setState(() => _error = 'Enter the 6-digit code.');
@@ -106,71 +95,31 @@ class _SignInScreenState extends State<SignInScreen> {
       _loading = true;
       _error = null;
     });
-    final email = _emailController.text.trim();
     try {
-      await authApi.verifyEmailOtp(email: email, code: otp);
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.message;
-      });
-      return;
-    } catch (_) {
-      if (AppEnv.allowDevOtp && otp == AppEnv.devOtp) {
-        await NytoSession.markSignedIn();
-      } else {
-        if (!mounted) return;
-        setState(() {
-          _loading = false;
-          _error = _reachError();
-        });
-        return;
-      }
+      await authRepository.verifyEmailCode(
+        email: _emailController.text.trim(),
+        code: otp,
+      );
+      _goHome();
+    } catch (error) {
+      _otpController.clear();
+      _handleFailure(error);
     }
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-      (_) => false,
-    );
   }
 
   Future<void> _googleSignIn() async {
+    if (_loading) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final google = await NytoGoogleAuth.signIn();
-      if (google == null) {
-        if (!mounted) return;
-        setState(() => _loading = false);
-        return;
-      }
-      await authApi.googleSignIn(google.idToken);
+      final idToken = await NytoGoogleAuth.signIn();
       if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const HomeScreen()),
-        (_) => false,
-      );
-    } on GoogleAuthException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.message;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = e.message;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _error = _reachError();
-      });
+      await authRepository.signInWithGoogle(idToken);
+      _goHome();
+    } catch (error) {
+      _handleFailure(error);
     }
   }
 
@@ -179,7 +128,6 @@ class _SignInScreenState extends State<SignInScreen> {
       _mode = 'email';
       _otpSent = false;
       _loading = false;
-      _devOtpHint = null;
       _error = null;
       _otpController.clear();
     });
@@ -191,7 +139,6 @@ class _SignInScreenState extends State<SignInScreen> {
       _mode = 'google';
       _otpSent = false;
       _loading = false;
-      _devOtpHint = null;
       _error = null;
       _otpController.clear();
     });
@@ -204,7 +151,6 @@ class _SignInScreenState extends State<SignInScreen> {
         _mode = null;
         _otpSent = false;
         _loading = false;
-        _devOtpHint = null;
         _error = null;
         _otpController.clear();
       });
@@ -441,18 +387,6 @@ class _SignInScreenState extends State<SignInScreen> {
                           ),
                           onChanged: (_) => setState(() => _error = null),
                         ),
-                        if (AppEnv.allowDevOtp &&
-                            _devOtpHint != null &&
-                            _devOtpHint!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Dev OTP: $_devOtpHint',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              color: NytoColors.cream.withValues(alpha: 0.4),
-                            ),
-                          ),
-                        ],
                       ],
                     ],
                     if (_error != null) ...[

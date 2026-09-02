@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:nyto_app/core/config/app_env.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_flow_state.dart';
@@ -10,34 +9,87 @@ import 'package:nyto_app/features/onboarding/widgets/auth/auth_social_button.dar
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_tokens.dart';
 import 'package:nyto_app/features/onboarding/widgets/otp_pin_field.dart';
 
-class AuthPhonePanel extends StatelessWidget {
+/// One phone surface: number entry morphs into OTP on the same screen
+/// (Zomato-style), instead of pushing a second full page.
+class AuthPhonePanel extends StatefulWidget {
   const AuthPhonePanel({
     super.key,
     required this.state,
-    required this.phone,
-    required this.otp,
+    required this.value,
     required this.country,
-    required this.devOtpHint,
+    required this.hint,
+    this.validationError,
+    required this.code,
     required this.onPickCountry,
-    required this.onChanged,
-    required this.onBack,
-    required this.onEditPhone,
+    required this.onPhoneChanged,
+    required this.onCodeChanged,
+    required this.onSendCode,
+    required this.onResend,
+    required this.onEditNumber,
+    required this.onBackToChoice,
   });
 
   final AuthFlowState state;
-  final TextEditingController phone;
-  final TextEditingController otp;
+  final String value;
   final CountryDial country;
-  final String? devOtpHint;
+  final String hint;
+  final String? validationError;
+  final String code;
   final VoidCallback onPickCountry;
-  final VoidCallback onChanged;
-  final VoidCallback onBack;
-  final VoidCallback onEditPhone;
+  final ValueChanged<String> onPhoneChanged;
+  final ValueChanged<String> onCodeChanged;
+  final VoidCallback? onSendCode;
+  final VoidCallback onResend;
+  final VoidCallback onEditNumber;
+  final VoidCallback onBackToChoice;
+
+  bool get _otpMode => state.stage == AuthStage.otpVerify;
+
+  @override
+  State<AuthPhonePanel> createState() => _AuthPhonePanelState();
+}
+
+class _AuthPhonePanelState extends State<AuthPhonePanel> {
+  late final TextEditingController _phoneController;
+  late final TextEditingController _otpController;
+
+  @override
+  void initState() {
+    super.initState();
+    _phoneController = TextEditingController(text: widget.value);
+    _otpController = TextEditingController(text: widget.code);
+  }
+
+  @override
+  void didUpdateWidget(covariant AuthPhonePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _phoneController.text) {
+      _phoneController.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+    if (widget.code != _otpController.text) {
+      _otpController.value = TextEditingValue(
+        text: widget.code,
+        selection: TextSelection.collapsed(offset: widget.code.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _phoneController.dispose();
+    _otpController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final otpSent = state.phoneOtpSent;
     final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final otp = widget._otpMode;
+    final destination = widget.state.maskedDestination ??
+        '${widget.country.dial} ${widget.value}'.trim();
 
     return SingleChildScrollView(
       padding: EdgeInsets.only(bottom: inset + AuthTokens.space8),
@@ -45,176 +97,121 @@ class AuthPhonePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Shared chrome — only the copy updates, so it feels like one sheet.
           AuthEditorialHeader(
-            eyebrow: otpSent ? 'Verify' : 'Phone',
-            title: otpSent ? 'Enter your code' : 'Your number',
-            subtitle: otpSent
-                ? 'We texted a 6-digit code to ${country.dial} ${phone.text.trim()}.'
+            eyebrow: otp ? 'Verify' : 'Phone',
+            title: otp ? 'Enter your code' : 'Your number',
+            subtitle: otp
+                ? 'We texted a 6-digit code to $destination.'
                 : 'We’ll text a one-time code. Anywhere works — pick your country.',
           ),
-          AuthBackLink(label: '← Other sign-in options', onTap: onBack),
+          AuthBackLink(
+            label: otp ? '← Change number' : '← Other sign-in options',
+            onTap: otp ? widget.onEditNumber : widget.onBackToChoice,
+          ),
           const SizedBox(height: AuthTokens.space20),
-          if (!otpSent) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _CountryChip(country: country, onTap: onPickCountry),
-                const SizedBox(width: AuthTokens.space12),
-                Expanded(
-                  child: _PhoneField(
-                    controller: phone,
-                    maxLen: country.maxLen,
-                    onChanged: onChanged,
-                  ),
-                ),
-              ],
+          AnimatedSize(
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: otp ? _buildOtpBody() : _buildPhoneBody(),
             ),
-            const SizedBox(height: AuthTokens.space12),
-            Text(
-              '${country.name} · ${country.minLen}–${country.maxLen} digits',
-              style: GoogleFonts.dmSans(
-                fontSize: 12,
-                color: NytoColors.cream.withValues(alpha: 0.38),
-              ),
-            ),
-          ] else ...[
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: onEditPhone,
-                child: Text(
-                  'Change number',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: NytoColors.ctaSoft,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: AuthTokens.space8),
-            OtpPinField(controller: otp, onChanged: (_) => onChanged()),
-            if (AppEnv.allowDevOtp && (devOtpHint?.isNotEmpty ?? false)) ...[
-              const SizedBox(height: AuthTokens.space12),
-              Text(
-                'Dev OTP: $devOtpHint',
-                style: GoogleFonts.dmSans(
-                  fontSize: 12,
-                  color: NytoColors.cream.withValues(alpha: 0.38),
-                ),
-              ),
-            ],
-          ],
-          if (state.error != null) ...[
+          ),
+          if (widget.state.error != null ||
+              (!otp && widget.validationError != null)) ...[
             const SizedBox(height: AuthTokens.space16),
-            AuthErrorBanner(message: state.error!),
+            AuthErrorBanner(
+              message: widget.state.error ?? widget.validationError!,
+            ),
           ],
         ],
       ),
     );
   }
-}
 
-class AuthConfirmPanel extends StatelessWidget {
-  const AuthConfirmPanel({
-    super.key,
-    required this.provider,
-    required this.label,
-    required this.onBack,
-    required this.onSwitch,
-  });
-
-  final String provider;
-  final String label;
-  final VoidCallback onBack;
-  final VoidCallback onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    final isApple = provider == 'Apple';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const AuthEditorialHeader(
-          eyebrow: 'Confirmed',
-          title: 'You’re almost in',
-          subtitle: 'We’ll use this account for your NYTO seat.',
-        ),
-        const SizedBox(height: AuthTokens.space32),
-        Container(
-          padding: const EdgeInsets.all(AuthTokens.space20),
-          decoration: BoxDecoration(
-            color: AuthTokens.surfaceElevated.withValues(alpha: 0.88),
-            borderRadius: BorderRadius.circular(AuthTokens.radiusXl),
-            border: Border.all(color: AuthTokens.surfaceBorder),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isApple
-                      ? Colors.white
-                      : NytoColors.cta.withValues(alpha: 0.18),
-                  border: Border.all(
-                    color: isApple
-                        ? Colors.white.withValues(alpha: 0.2)
-                        : NytoColors.cta.withValues(alpha: 0.35),
+  Widget _buildPhoneBody() {
+    return KeyedSubtree(
+      key: const ValueKey('phone-body'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AutofillGroup(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _CountryChip(
+                  country: widget.country,
+                  onTap: widget.onPickCountry,
+                ),
+                const SizedBox(width: AuthTokens.space12),
+                Expanded(
+                  child: _PhoneField(
+                    controller: _phoneController,
+                    maxLen: widget.country.maxLen,
+                    onChanged: widget.onPhoneChanged,
+                    onSubmit: widget.onSendCode,
                   ),
                 ),
-                child: isApple
-                    ? const AppleLogoMark(size: 26, color: Colors.black)
-                    : Text(
-                        label.isNotEmpty ? label[0].toUpperCase() : '?',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: NytoColors.cream,
-                        ),
-                      ),
-              ),
-              const SizedBox(width: AuthTokens.space16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      provider,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 12,
-                        color: NytoColors.cream.withValues(alpha: 0.45),
-                      ),
-                    ),
-                    Text(
-                      label,
-                      style: GoogleFonts.dmSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: NytoColors.cream,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: AuthTokens.space16),
-        TextButton(
-          onPressed: onSwitch,
-          child: Text(
-            'Switch $provider account',
-            style: GoogleFonts.dmSans(
-              color: NytoColors.ctaSoft,
-              fontWeight: FontWeight.w600,
+              ],
             ),
           ),
-        ),
-        AuthBackLink(label: 'Other sign-in options', onTap: onBack),
-      ],
+          const SizedBox(height: AuthTokens.space12),
+          Text(
+            widget.hint,
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              color: NytoColors.cream.withValues(alpha: 0.38),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOtpBody() {
+    final state = widget.state;
+    return KeyedSubtree(
+      key: const ValueKey('otp-body'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Compact reminder of which number is being verified.
+          Text(
+            '${widget.country.dial} ${widget.value}',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: NytoColors.cream.withValues(alpha: 0.55),
+            ),
+          ),
+          const SizedBox(height: AuthTokens.space16),
+          OtpPinField(
+            controller: _otpController,
+            onChanged: widget.onCodeChanged,
+          ),
+          const SizedBox(height: AuthTokens.space16),
+          _ResendRow(
+            canResend: state.canResend,
+            countdown: state.resendCountdown,
+            isResending: state.busy == AuthBusy.resendingCode,
+            onResend: widget.onResend,
+          ),
+          if (state.autofillActive && widget.code.isEmpty) ...[
+            const SizedBox(height: AuthTokens.space12),
+            Text(
+              'Waiting for the code — we’ll fill it in automatically.',
+              style: GoogleFonts.dmSans(
+                fontSize: 12,
+                color: NytoColors.cream.withValues(alpha: 0.38),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -270,11 +267,13 @@ class _PhoneField extends StatelessWidget {
     required this.controller,
     required this.maxLen,
     required this.onChanged,
+    required this.onSubmit,
   });
 
   final TextEditingController controller;
   final int maxLen;
-  final VoidCallback onChanged;
+  final ValueChanged<String> onChanged;
+  final VoidCallback? onSubmit;
 
   @override
   Widget build(BuildContext context) {
@@ -282,11 +281,14 @@ class _PhoneField extends StatelessWidget {
       controller: controller,
       autofocus: true,
       keyboardType: TextInputType.phone,
+      textInputAction: TextInputAction.done,
+      autofillHints: const [AutofillHints.telephoneNumberNational],
       inputFormatters: [
         FilteringTextInputFormatter.digitsOnly,
         LengthLimitingTextInputFormatter(maxLen),
       ],
-      onChanged: (_) => onChanged(),
+      onChanged: onChanged,
+      onSubmitted: (_) => onSubmit?.call(),
       style: GoogleFonts.dmSans(
         color: NytoColors.cream,
         fontSize: 18,
@@ -309,6 +311,77 @@ class _PhoneField extends StatelessWidget {
           borderSide: BorderSide(
             color: NytoColors.ctaSoft.withValues(alpha: 0.75),
             width: 1.4,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ResendRow extends StatelessWidget {
+  const _ResendRow({
+    required this.canResend,
+    required this.countdown,
+    required this.isResending,
+    required this.onResend,
+  });
+
+  final bool canResend;
+  final Duration countdown;
+  final bool isResending;
+  final VoidCallback onResend;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isResending) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.6,
+              valueColor: AlwaysStoppedAnimation(
+                NytoColors.cream.withValues(alpha: 0.5),
+              ),
+            ),
+          ),
+          const SizedBox(width: AuthTokens.space8),
+          Text(
+            'Sending a new code…',
+            style: GoogleFonts.dmSans(
+              fontSize: 13,
+              color: NytoColors.cream.withValues(alpha: 0.5),
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (!canResend && countdown > Duration.zero) {
+      return Center(
+        child: Text(
+          'Resend code in ${countdown.inSeconds}s',
+          style: GoogleFonts.dmSans(
+            fontSize: 13,
+            color: NytoColors.cream.withValues(alpha: 0.38),
+          ),
+        ),
+      );
+    }
+
+    return Center(
+      child: TextButton(
+        onPressed: canResend ? onResend : null,
+        child: Text(
+          'Resend code',
+          style: GoogleFonts.dmSans(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: canResend
+                ? NytoColors.ctaSoft
+                : NytoColors.cream.withValues(alpha: 0.3),
           ),
         ),
       ),

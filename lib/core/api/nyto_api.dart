@@ -1,107 +1,22 @@
 import 'package:nyto_app/core/api/api_client.dart';
 
+/// Profile endpoints for the signed-in user.
+///
+/// Sign-in and session handling live in `AuthRepository` — this class never
+/// issues or stores tokens.
 class AuthApi {
   AuthApi(this._api);
 
   final ApiClient _api;
 
-  static const timeout = Duration(seconds: 10);
-
-  Future<Map<String, dynamic>> register({
-    required String fullName,
-    required String dateOfBirth,
-    required String phone,
-  }) {
-    return _api.post(
-      '/auth/register',
-      body: {
-        'fullName': fullName,
-        'dateOfBirth': dateOfBirth,
-        'phone': phone,
-      },
-    );
-  }
-
-  Future<Map<String, dynamic>> requestOtp(String phone) {
-    return _api.post('/auth/otp/request', body: {'phone': phone});
-  }
-
-  Future<Map<String, dynamic>> verifyOtp({
-    required String phone,
-    required String code,
-  }) async {
-    final json = await _api.post(
-      '/auth/otp/verify',
-      body: {'phone': phone, 'code': code},
-    );
-    final token = json['token'] as String?;
-    if (token != null) await _api.saveToken(token);
-    return json;
-  }
-
-  Future<Map<String, dynamic>> requestPhoneOtp(String phone) {
-    return _api
-        .post('/auth/phone/otp/request', body: {'phone': phone})
-        .timeout(timeout);
-  }
-
-  Future<Map<String, dynamic>> verifyPhoneOtp({
-    required String phone,
-    required String code,
-  }) async {
-    final json = await _api
-        .post('/auth/phone/otp/verify', body: {'phone': phone, 'code': code})
-        .timeout(timeout);
-    final token = json['token'] as String?;
-    if (token != null) await _api.saveToken(token);
-    return json;
-  }
-
-  Future<Map<String, dynamic>> appleSignIn(String idToken) async {
-    final json = await _api
-        .post('/auth/apple', body: {'idToken': idToken})
-        .timeout(timeout);
-    final token = json['token'] as String?;
-    if (token != null) await _api.saveToken(token);
-    return json;
-  }
-
-  Future<Map<String, dynamic>> requestEmailOtp(String email) {
-    return _api
-        .post('/auth/email/otp/request', body: {'email': email})
-        .timeout(timeout);
-  }
-
-  Future<Map<String, dynamic>> verifyEmailOtp({
-    required String email,
-    required String code,
-  }) async {
-    final json = await _api
-        .post('/auth/email/otp/verify', body: {'email': email, 'code': code})
-        .timeout(timeout);
-    final token = json['token'] as String?;
-    if (token != null) await _api.saveToken(token);
-    return json;
-  }
-
-  Future<Map<String, dynamic>> googleSignIn(String idToken) async {
-    final json = await _api
-        .post('/auth/google', body: {'idToken': idToken})
-        .timeout(timeout);
-    final token = json['token'] as String?;
-    if (token != null) await _api.saveToken(token);
-    return json;
-  }
-
-  Future<Map<String, dynamic>> me() =>
-      _api.get('/auth/me', auth: true).timeout(timeout);
+  Future<Map<String, dynamic>> me() => _api.get('/auth/me', auth: true);
 
   Future<Map<String, dynamic>> updateMe(Map<String, dynamic> body) {
-    return _api.patch('/auth/me', auth: true, body: body).timeout(timeout);
+    return _api.patch('/auth/me', auth: true, body: body);
   }
 
   Future<Map<String, dynamic>> deleteMe() {
-    return _api.delete('/auth/me', auth: true).timeout(timeout);
+    return _api.delete('/auth/me', auth: true);
   }
 }
 
@@ -163,10 +78,7 @@ class VerificationApi {
     return _api.post(
       '/verification/id',
       auth: true,
-      body: {
-        'documentType': documentType,
-        'documentUrl': documentUrl,
-      },
+      body: {'documentType': documentType, 'documentUrl': documentUrl},
     );
   }
 

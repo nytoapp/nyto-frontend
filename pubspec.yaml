@@ -45,6 +45,9 @@ dependencies:
   google_sign_in: ^7.2.0
   socket_io_client: ^3.1.6
   sign_in_with_apple: ^8.2.0
+  flutter_secure_storage: 10.3.1
+  smart_auth: ^3.2.0
+  flutter_facebook_auth: 7.2.0
 
 dev_dependencies:
   flutter_test:
@@ -84,7 +87,7 @@ flutter:
     - assets/brand/nyto_logo_wordmark.png
     - assets/brand/nyto_boot_splash.png
     - assets/brand/google_g.svg
-    - assets/brand/instagram_logo.svg
+    - assets/brand/facebook_logo.svg
     - assets/brand/apple_logo.svg
     - assets/video/
 

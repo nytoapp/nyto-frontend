@@ -120,24 +120,12 @@ class AuthController extends ChangeNotifier {
 
   // ── Navigation intents ──────────────────────────────────────────────────
 
-  void openPhone() {
-    if (!_state.canInteract) return;
-    _begin();
-    _code = '';
-    _emit(
-      _state.copyWith(
-        stage: AuthStage.phoneInput,
-        busy: AuthBusy.none,
-        clearError: true,
-        clearConfirm: true,
-        clearHandoff: true,
-      ),
-    );
-    unawaited(_offerPhoneNumberHint());
-  }
+  /// Opens the system phone-number sheet (Zomato-style). Does not change stage —
+  /// the number field already lives on the choice screen.
+  Future<void> requestPhoneNumberHint() => _offerPhoneNumberHint();
 
   /// Back from wherever we are. Deterministic and confined to the auth flow:
-  /// OTP returns to phone input, everything else returns to the choice panel.
+  /// OTP returns to the choice screen (where the phone field lives).
   /// Returns false when there is nowhere left to go, so the screen can pop.
   bool goBack() {
     if (_state.busy != AuthBusy.none) return true;
@@ -151,7 +139,7 @@ class AuthController extends ChangeNotifier {
         _stopCountdown();
         _emit(
           _state.copyWith(
-            stage: AuthStage.phoneInput,
+            stage: AuthStage.choice,
             busy: AuthBusy.none,
             clearError: true,
             clearResend: true,
@@ -162,6 +150,10 @@ class AuthController extends ChangeNotifier {
         return true;
 
       case AuthStage.phoneInput:
+        // Legacy stage — treat like returning to choice.
+        resetToChoice();
+        return true;
+
       case AuthStage.confirm:
         resetToChoice();
         return true;
@@ -184,7 +176,6 @@ class AuthController extends ChangeNotifier {
   void setCountry(CountryDial country) {
     if (country.code == _country.code && country.dial == _country.dial) return;
     _country = country;
-    // Re-sanitize: a number valid for the old country may need reformatting.
     _phoneRaw = PhoneNumbers.sanitize(_phoneRaw, country);
     _emit(_state.copyWith(clearError: true));
   }
@@ -203,8 +194,6 @@ class AuthController extends ChangeNotifier {
     _code = next;
     _emit(_state.copyWith(clearError: true));
 
-    // Auto-submit the moment a full code is present, from typing, pasting or
-    // autofill. `verifyCode` is itself guarded against duplicates.
     if (next.length == 6 && _state.canInteract) {
       unawaited(verifyCode());
     }
@@ -212,17 +201,36 @@ class AuthController extends ChangeNotifier {
 
   Future<void> _offerPhoneNumberHint() async {
     if (_phoneRaw.isNotEmpty) return;
+    if (!_state.canInteract) return;
+
     final generation = _generation;
     final suggestion = await _phoneNumberHint();
     if (!_isCurrent(generation) || suggestion == null) return;
     if (_phoneRaw.isNotEmpty) return;
 
-    final split = PhoneNumbers.splitE164(suggestion);
-    if (split != null) {
-      _country = split.country;
-      _phoneRaw = split.national;
+    _applyPhoneSuggestion(suggestion);
+  }
+
+  /// Applies an OS-suggested number. Prefer keeping the user's selected country
+  /// when the national digits are already valid for it — OEMs often tag Indian
+  /// SIMs as +44, which used to flip the flag incorrectly.
+  void _applyPhoneSuggestion(String suggestion) {
+    final trimmed = suggestion.trim();
+    if (trimmed.startsWith('+')) {
+      final split = PhoneNumbers.splitE164(trimmed);
+      if (split != null) {
+        final asCurrent = PhoneNumbers.validate(split.national, _country);
+        if (asCurrent.isValid) {
+          _phoneRaw = split.national;
+        } else {
+          _country = split.country;
+          _phoneRaw = split.national;
+        }
+      } else {
+        _phoneRaw = PhoneNumbers.sanitize(trimmed, _country);
+      }
     } else {
-      _phoneRaw = PhoneNumbers.sanitize(suggestion, _country);
+      _phoneRaw = PhoneNumbers.sanitize(trimmed, _country);
     }
     _emit(_state.copyWith(clearError: true));
   }

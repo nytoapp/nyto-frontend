@@ -5,15 +5,13 @@ import 'package:nyto_app/features/onboarding/widgets/auth/auth_choice_panel.dart
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_confirm_panel.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_controller.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_flow_state.dart';
-import 'package:nyto_app/features/onboarding/widgets/auth/auth_phone_panel.dart';
+import 'package:nyto_app/features/onboarding/widgets/auth/auth_otp_panel.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_primary_button.dart';
 import 'package:nyto_app/features/onboarding/widgets/country_code_sheet.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
-/// Auth hub — phone OTP, plus Facebook and Google (Apple on iOS).
-///
-/// Phone number and OTP share one surface (Zomato-style). Choice and social
-/// confirm remain their own panels.
+/// Auth hub — Zomato-style phone field on the choice screen, OTP as its own
+/// panel, plus Facebook and Google (Apple on iOS).
 class AuthStep extends StatefulWidget {
   const AuthStep({super.key, required this.data, required this.onContinue});
 
@@ -28,15 +26,6 @@ class _AuthStepState extends State<AuthStep> {
   late final AuthController _auth;
 
   bool get _isIos => defaultTargetPlatform == TargetPlatform.iOS;
-
-  /// Phone + OTP are one visual surface — don't remount between them.
-  Object get _surfaceKey {
-    final stage = _auth.state.stage;
-    if (stage == AuthStage.phoneInput || stage == AuthStage.otpVerify) {
-      return 'phone-surface';
-    }
-    return stage;
-  }
 
   @override
   void initState() {
@@ -106,18 +95,11 @@ class _AuthStepState extends State<AuthStep> {
   Widget? _buildFooter() {
     final state = _auth.state;
 
+    // Continue for phone lives on the choice panel itself (Zomato-style).
     switch (state.stage) {
       case AuthStage.choice:
-        return null;
-
       case AuthStage.phoneInput:
-        final sending = state.busy == AuthBusy.sendingCode;
-        return AuthFooterButton(
-          label: sending ? 'Sending code…' : 'Send code',
-          loading: sending,
-          enabled: _auth.canSubmitPhone,
-          onPressed: _auth.canSubmitPhone ? _auth.sendCode : null,
-        );
+        return null;
 
       case AuthStage.otpVerify:
         final verifying = state.busy == AuthBusy.verifyingCode;
@@ -178,7 +160,7 @@ class _AuthStepState extends State<AuthStep> {
             );
           },
           child: SizedBox(
-            key: ValueKey(_surfaceKey),
+            key: ValueKey(state.stage),
             width: double.infinity,
             height: double.infinity,
             child: _buildBody(),
@@ -193,31 +175,31 @@ class _AuthStepState extends State<AuthStep> {
 
     switch (state.stage) {
       case AuthStage.choice:
+      case AuthStage.phoneInput:
         return AuthChoicePanel(
           isIos: _isIos,
           state: state,
-          onPhone: _auth.openPhone,
+          phoneValue: _auth.phoneRaw,
+          country: _auth.country,
+          phoneHint: _auth.phoneHint,
+          validationError: _auth.phoneInput.error,
+          onPickCountry: _pickCountry,
+          onPhoneChanged: _auth.setPhone,
+          onPhoneFocused: _auth.requestPhoneNumberHint,
+          onContinue: _auth.canSubmitPhone ? _auth.sendCode : null,
           onFacebook: _auth.signInWithFacebook,
           onGoogle: _auth.signInWithGoogle,
           onApple: _auth.signInWithApple,
         );
 
-      case AuthStage.phoneInput:
       case AuthStage.otpVerify:
-        return AuthPhonePanel(
+        return AuthOtpPanel(
           state: state,
-          value: _auth.phoneRaw,
-          country: _auth.country,
-          hint: _auth.phoneHint,
-          validationError: _auth.phoneInput.error,
           code: _auth.code,
-          onPickCountry: _pickCountry,
-          onPhoneChanged: _auth.setPhone,
-          onCodeChanged: _auth.setCode,
-          onSendCode: _auth.canSubmitPhone ? _auth.sendCode : null,
+          phoneDisplay: '${_auth.country.dial} ${_auth.phoneRaw}',
+          onChanged: _auth.setCode,
           onResend: _auth.resendCode,
           onEditNumber: _auth.goBack,
-          onBackToChoice: _auth.resetToChoice,
         );
 
       case AuthStage.confirm:

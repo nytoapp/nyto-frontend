@@ -103,8 +103,6 @@ void main() {
   group('phone input', () {
     test('send is disabled until the number is valid', () {
       final auth = build();
-      auth.openPhone();
-
       auth.setPhone('987654321');
       expect(auth.canSubmitPhone, isFalse);
 
@@ -130,19 +128,26 @@ void main() {
 
     test('an OS-suggested number fills the field and country', () async {
       final auth = build(hint: () async => '+14155550123');
-      auth.openPhone();
-      await Future<void>.delayed(Duration.zero);
+      await auth.requestPhoneNumberHint();
 
       expect(auth.country.code, 'US');
       expect(auth.phoneRaw, '4155550123');
       addTearDown(auth.dispose);
     });
 
+    test('keeps India when digits are valid locally despite a +44 tag', () async {
+      final auth = build(hint: () async => '+446302008513');
+      await auth.requestPhoneNumberHint();
+
+      expect(auth.country.code, 'IN');
+      expect(auth.phoneRaw, '6302008513');
+      addTearDown(auth.dispose);
+    });
+
     test('a typed number is never overwritten by a suggestion', () async {
       final auth = build(hint: () async => '+14155550123');
-      auth.openPhone();
       auth.setPhone('9876543210');
-      await Future<void>.delayed(Duration.zero);
+      await auth.requestPhoneNumberHint();
 
       expect(auth.country.code, 'IN');
       expect(auth.phoneRaw, '9876543210');
@@ -153,7 +158,6 @@ void main() {
   group('send code', () {
     test('a valid number moves to OTP entry', () async {
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
 
       await auth.sendCode();
@@ -168,7 +172,6 @@ void main() {
     test('five taps send one SMS', () async {
       repo.requestDelay = const Duration(milliseconds: 40);
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
 
       await Future.wait([
@@ -185,13 +188,12 @@ void main() {
 
     test('an invalid number is refused even if the intent is called', () async {
       final auth = build();
-      auth.openPhone();
       auth.setPhone('12345');
 
       await auth.sendCode();
 
       expect(repo.requestCount, 0);
-      expect(auth.state.stage, AuthStage.phoneInput);
+      expect(auth.state.stage, AuthStage.choice);
       addTearDown(auth.dispose);
     });
 
@@ -200,12 +202,11 @@ void main() {
       () async {
         repo.requestError = AuthFailure.offline;
         final auth = build();
-        auth.openPhone();
         auth.setPhone('9876543210');
 
         await auth.sendCode();
 
-        expect(auth.state.stage, AuthStage.phoneInput);
+        expect(auth.state.stage, AuthStage.choice);
         expect(auth.state.busy, AuthBusy.none);
         expect(auth.state.error, contains('internet'));
         addTearDown(auth.dispose);
@@ -216,7 +217,6 @@ void main() {
   group('verify code', () {
     Future<AuthController> atOtp() async {
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
       await auth.sendCode();
       return auth;
@@ -286,7 +286,6 @@ void main() {
 
     test('an SMS-retrieved code is verified without user action', () async {
       final auth = build(sms: () async => '654321');
-      auth.openPhone();
       auth.setPhone('9876543210');
 
       await auth.sendCode();
@@ -300,7 +299,6 @@ void main() {
   group('resend', () {
     test('is blocked during the cooldown', () async {
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
       await auth.sendCode();
 
@@ -315,7 +313,6 @@ void main() {
     test('is allowed once the cooldown elapses', () async {
       repo.resendAfter = Duration.zero;
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
       await auth.sendCode();
 
@@ -329,7 +326,6 @@ void main() {
     test('a failed resend does not restart the cooldown', () async {
       repo.resendAfter = Duration.zero;
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
       await auth.sendCode();
 
@@ -343,9 +339,8 @@ void main() {
   });
 
   group('navigation', () {
-    test('OTP goes back to phone input, not out of the flow', () async {
+    test('OTP goes back to the choice screen with the phone field', () async {
       final auth = build();
-      auth.openPhone();
       auth.setPhone('9876543210');
       await auth.sendCode();
       expect(auth.state.stage, AuthStage.otpVerify);
@@ -353,17 +348,9 @@ void main() {
       final handled = auth.goBack();
 
       expect(handled, isTrue);
-      expect(auth.state.stage, AuthStage.phoneInput);
-      expect(auth.code, isEmpty);
-      addTearDown(auth.dispose);
-    });
-
-    test('phone input goes back to the choice panel', () {
-      final auth = build();
-      auth.openPhone();
-
-      expect(auth.goBack(), isTrue);
       expect(auth.state.stage, AuthStage.choice);
+      expect(auth.code, isEmpty);
+      expect(auth.phoneRaw, '9876543210');
       addTearDown(auth.dispose);
     });
 
@@ -489,7 +476,6 @@ void main() {
       final auth = build(google: ({bool switchAccount = false}) => gate.future);
 
       final pending = auth.signInWithGoogle();
-      auth.openPhone();
       await auth.sendCode();
 
       expect(repo.requestCount, 0);

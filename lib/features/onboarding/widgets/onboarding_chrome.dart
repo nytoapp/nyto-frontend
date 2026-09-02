@@ -86,7 +86,16 @@ class OnboardingScaffold extends StatelessWidget {
                   ),
                   if (footer != null)
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+                      // Keep a little air above the home indicator / keyboard
+                      // edge without pushing the button off-screen.
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        8,
+                        24,
+                        resizeForKeyboard
+                            ? 12 + MediaQuery.paddingOf(context).bottom.clamp(0, 12)
+                            : 20,
+                      ),
                       child: footer!,
                     ),
                 ],

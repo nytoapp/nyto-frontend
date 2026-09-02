@@ -59,7 +59,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (preSession != null && preSession.controllers.isNotEmpty) {
       _session = preSession;
       _useVideo = true;
-      _ownsSession = false;
+      _ownsSession = true;
       _startCarousel();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _revealUi();
@@ -147,14 +147,21 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       preloadedFirst: first,
       preloadedAssetPath: assetPath,
     );
-    if (!mounted || full == null || full.controllers.length <= 1) return;
+    if (!mounted || full == null) return;
 
-    final previousCarousel = _carousel;
+    final currentCount = _session?.controllers.length ?? 0;
+    if (full.controllers.length <= currentCount) return;
+
     _session = full;
     _ownsSession = true;
-    _startCarousel();
-    previousCarousel?.dispose();
-    setState(() {});
+
+    if (_carousel != null && currentCount >= 1) {
+      await _carousel!.absorbSession(full);
+    } else {
+      _startCarousel();
+    }
+
+    if (mounted) setState(() {});
   }
 
   void _setSystemUi() {
@@ -205,17 +212,16 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       session: session,
       vsync: this,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _carousel?.resumePlayback();
+    });
   }
 
   Future<void> _disposeSession(
     WelcomeCarouselSession session, {
     VideoPlayerController? keep,
   }) async {
-    for (final c in session.controllers) {
-      if (c != keep) {
-        await c.dispose();
-      }
-    }
+    await WelcomeVideoClip.disposeSession(session, keep: keep);
   }
 
   void _revealUi() {
@@ -414,7 +420,7 @@ class _CarouselBackdrop extends StatelessWidget {
   }
 }
 
-class _VideoFill extends StatelessWidget {
+class _VideoFill extends StatefulWidget {
   const _VideoFill({
     required this.controller,
     required this.opacity,
@@ -424,7 +430,38 @@ class _VideoFill extends StatelessWidget {
   final double opacity;
 
   @override
+  State<_VideoFill> createState() => _VideoFillState();
+}
+
+class _VideoFillState extends State<_VideoFill> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_onVideo);
+  }
+
+  @override
+  void didUpdateWidget(covariant _VideoFill oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onVideo);
+      widget.controller.addListener(_onVideo);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onVideo);
+    super.dispose();
+  }
+
+  void _onVideo() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     if (!controller.value.isInitialized) {
       return const ColoredBox(color: NytoColors.brandInk);
     }
@@ -436,7 +473,7 @@ class _VideoFill extends StatelessWidget {
     }
 
     return Opacity(
-      opacity: opacity.clamp(0.0, 1.0),
+      opacity: widget.opacity.clamp(0.0, 1.0),
       child: ColoredBox(
         color: NytoColors.brandInk,
         child: SizedBox.expand(

@@ -91,28 +91,8 @@ class AuthBackLink extends StatelessWidget {
   }
 }
 
-class InstagramLogoMark extends StatelessWidget {
-  const InstagramLogoMark({super.key, this.size = 24});
-
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    return SvgPicture.asset(
-      'assets/brand/instagram_logo.svg',
-      width: size,
-      height: size,
-      semanticsLabel: 'Instagram',
-    );
-  }
-}
-
 class AppleLogoMark extends StatelessWidget {
-  const AppleLogoMark({
-    super.key,
-    this.size = 22,
-    this.color = Colors.black,
-  });
+  const AppleLogoMark({super.key, this.size = 22, this.color = Colors.black});
 
   final double size;
   final Color color;

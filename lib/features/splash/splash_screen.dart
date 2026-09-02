@@ -29,6 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
   bool? _sessionResult;
   VideoPlayerController? _preloadedFirst;
   String? _preloadedAssetPath;
+  WelcomeCarouselSession? _preloadedSession;
 
   @override
   void initState() {
@@ -82,7 +83,25 @@ class _SplashScreenState extends State<SplashScreen> {
       _preloadedFirst = warmed.controller;
       _preloadedAssetPath = warmed.assetPath;
       _ownsFirstClip = true;
+      unawaited(_warmRemainingClips(warmed.controller, warmed.assetPath));
     }
+  }
+
+  Future<void> _warmRemainingClips(
+    VideoPlayerController first,
+    String assetPath,
+  ) async {
+    final full = await WelcomeVideoClip.createCarousel(
+      preloadedFirst: first,
+      preloadedAssetPath: assetPath,
+    );
+    if (!mounted || _navigated) {
+      if (full != null) {
+        await WelcomeVideoClip.disposeSession(full, keep: first);
+      }
+      return;
+    }
+    _preloadedSession = full;
   }
 
   Future<void> _holdThenNavigate() async {
@@ -122,8 +141,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final handedFirst = _preloadedFirst;
     final handedPath = _preloadedAssetPath;
+    final handedSession = _preloadedSession;
     _preloadedFirst = null;
     _preloadedAssetPath = null;
+    _preloadedSession = null;
     if (handedFirst != null) {
       _ownsFirstClip = false;
     }
@@ -134,7 +155,8 @@ class _SplashScreenState extends State<SplashScreen> {
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => WelcomeScreen(
-          preloadedFirst: handedFirst,
+          preloadedSession: handedSession,
+          preloadedFirst: handedSession == null ? handedFirst : null,
           preloadedAssetPath: handedPath,
           fromSplashHandoff: handedFirst != null,
         ),

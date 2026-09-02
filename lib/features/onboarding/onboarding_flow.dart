@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
@@ -41,8 +40,8 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   Future<void> _finish() async {
+    // The session already exists — the auth step cannot be passed without one.
     await _syncProfile();
-    await NytoSession.markSignedIn();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       onboardingRoute(const HomeScreen()),

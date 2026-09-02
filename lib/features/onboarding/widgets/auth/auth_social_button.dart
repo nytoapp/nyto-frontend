@@ -3,10 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_flow_state.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_header.dart';
+import 'package:nyto_app/features/onboarding/widgets/auth/facebook_logo_mark.dart';
 import 'package:nyto_app/features/onboarding/widgets/auth/auth_tokens.dart';
 import 'package:nyto_app/features/onboarding/widgets/google_g_logo.dart';
 
-enum AuthSocialVariant { instagram, google, apple }
+enum AuthSocialVariant { facebook, google, apple }
 
 class AuthSocialButton extends StatefulWidget {
   const AuthSocialButton({
@@ -31,8 +32,8 @@ class _AuthSocialButtonState extends State<AuthSocialButton> {
 
   String get _label {
     switch (widget.variant) {
-      case AuthSocialVariant.instagram:
-        return 'Instagram';
+      case AuthSocialVariant.facebook:
+        return 'Facebook';
       case AuthSocialVariant.google:
         return 'Google';
       case AuthSocialVariant.apple:
@@ -44,7 +45,8 @@ class _AuthSocialButtonState extends State<AuthSocialButton> {
 
   @override
   Widget build(BuildContext context) {
-    final active = widget.enabled && !widget.loading && widget.onPressed != null;
+    final active =
+        widget.enabled && !widget.loading && widget.onPressed != null;
     final scale = _pressed && active ? 0.98 : 1.0;
 
     return Semantics(
@@ -70,14 +72,16 @@ class _AuthSocialButtonState extends State<AuthSocialButton> {
                 borderRadius: BorderRadius.circular(AuthTokens.radiusMd),
                 border: Border.all(color: _borderColor, width: 1),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: AuthTokens.space16),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AuthTokens.space16,
+              ),
               child: Row(
                 children: [
                   _iconSlot(),
                   const SizedBox(width: AuthTokens.space12),
                   Expanded(
                     child: Text(
-                      widget.loading ? 'Opening…' : _label,
+                      widget.loading ? 'Signing in…' : _label,
                       style: GoogleFonts.dmSans(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -137,8 +141,8 @@ class _AuthSocialButtonState extends State<AuthSocialButton> {
     }
 
     switch (widget.variant) {
-      case AuthSocialVariant.instagram:
-        return const InstagramLogoMark(size: 28);
+      case AuthSocialVariant.facebook:
+        return const FacebookLogoMark(size: 26);
       case AuthSocialVariant.google:
         return const GoogleGLogo(size: 22);
       case AuthSocialVariant.apple:
@@ -251,23 +255,10 @@ class AuthErrorBanner extends StatelessWidget {
   }
 }
 
-AuthBusy busyForProvider(AuthProviderKind kind) {
-  switch (kind) {
-    case AuthProviderKind.phone:
-      return AuthBusy.phoneSend;
-    case AuthProviderKind.google:
-      return AuthBusy.google;
-    case AuthProviderKind.apple:
-      return AuthBusy.apple;
-    case AuthProviderKind.instagram:
-      return AuthBusy.instagram;
-  }
-}
-
 AuthSocialVariant socialVariant(AuthProviderKind kind) {
   switch (kind) {
-    case AuthProviderKind.instagram:
-      return AuthSocialVariant.instagram;
+    case AuthProviderKind.facebook:
+      return AuthSocialVariant.facebook;
     case AuthProviderKind.google:
       return AuthSocialVariant.google;
     case AuthProviderKind.apple:

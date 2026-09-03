@@ -16,6 +16,8 @@ class UpcomingTable {
     this.section = 'This week',
     this.city = 'Hyderabad',
     this.startsAt,
+    this.bookingOpensAt,
+    this.bookable = true,
     this.menSeated = 0,
     this.womenSeated = 0,
     this.nonBinarySeated = 0,
@@ -34,15 +36,14 @@ class UpcomingTable {
   final String section;
   final String city;
   final DateTime? startsAt;
-
-  /// Anonymous seated mix (prefer-not-to-say is never shown publicly).
+  final DateTime? bookingOpensAt;
+  final bool bookable;
   final int menSeated;
   final int womenSeated;
   final int nonBinarySeated;
 
   int get seatsLeft => capacity - seatsTaken;
 
-  /// Quiet label: `2W · 1M · 1NB · 3 open`
   String get seatMixLabel {
     final parts = <String>[];
     if (womenOnly) {
@@ -74,6 +75,11 @@ class UpcomingTable {
     if (rawStarts is String) {
       startsAt = DateTime.tryParse(rawStarts)?.toLocal();
     }
+    DateTime? bookingOpensAt;
+    final rawOpens = json['bookingOpensAt'];
+    if (rawOpens is String) {
+      bookingOpensAt = DateTime.tryParse(rawOpens)?.toLocal();
+    }
     final womenOnly = json['womenOnly'] as bool? ?? false;
     var men = json['menSeated'] as int?;
     var women = json['womenSeated'] as int?;
@@ -100,13 +106,14 @@ class UpcomingTable {
       section: json['section'] as String? ?? 'This week',
       city: json['city'] as String? ?? 'Hyderabad',
       startsAt: startsAt,
+      bookingOpensAt: bookingOpensAt,
+      bookable: json['bookable'] as bool? ?? true,
       menSeated: men ?? 0,
       womenSeated: women ?? 0,
       nonBinarySeated: nb ?? 0,
     );
   }
 
-  /// Deterministic UI preview until booking genders ship from API.
   static (int, int, int) _previewMix({
     required int taken,
     required bool womenOnly,

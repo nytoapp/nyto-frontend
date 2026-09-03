@@ -25,11 +25,50 @@ class TablesApi {
 
   final ApiClient _api;
 
-  Future<List<Map<String, dynamic>>> list({String filter = 'this_week'}) async {
-    final json = await _api.get('/tables', query: {'filter': filter});
+  Future<Map<String, dynamic>> listRaw({
+    String filter = 'this_week',
+    String? city,
+    String? area,
+  }) {
+    final query = <String, String>{'filter': filter};
+    final trimmedCity = city?.trim();
+    if (trimmedCity != null && trimmedCity.isNotEmpty) {
+      query['city'] = trimmedCity;
+    }
+    final trimmedArea = area?.trim();
+    if (trimmedArea != null && trimmedArea.isNotEmpty) {
+      query['area'] = trimmedArea;
+    }
+    return _api.get('/tables', query: query);
+  }
+
+  Future<List<Map<String, dynamic>>> list({
+    String filter = 'this_week',
+    String? city,
+    String? area,
+  }) async {
+    final json = await listRaw(filter: filter, city: city, area: area);
     final tables = json['tables'];
     if (tables is! List) return [];
     return tables.cast<Map<String, dynamic>>();
+  }
+}
+
+class LocationsApi {
+  LocationsApi(this._api);
+
+  final ApiClient _api;
+
+  Future<Map<String, dynamic>> launch() => _api.get('/locations/launch');
+
+  Future<Map<String, dynamic>> nearestArea({
+    required double lat,
+    required double lng,
+  }) {
+    return _api.post(
+      '/locations/nearest-area',
+      body: {'lat': lat, 'lng': lng},
+    );
   }
 }
 
@@ -64,6 +103,21 @@ class BookingsApi {
       body: {'method': method},
     );
   }
+
+  Future<List<Map<String, dynamic>>> listMine() async {
+    final json = await _api.get('/bookings/me', auth: true);
+    final bookings = json['bookings'];
+    if (bookings is! List) return [];
+    return bookings.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> get(String bookingId) {
+    return _api.get('/bookings/$bookingId', auth: true);
+  }
+
+  Future<Map<String, dynamic>> cancel(String bookingId) {
+    return _api.post('/bookings/$bookingId/cancel', auth: true);
+  }
 }
 
 class VerificationApi {
@@ -95,5 +149,6 @@ class VerificationApi {
 
 final authApi = AuthApi(apiClient);
 final tablesApi = TablesApi(apiClient);
+final locationsApi = LocationsApi(apiClient);
 final bookingsApi = BookingsApi(apiClient);
 final verificationApi = VerificationApi(apiClient);

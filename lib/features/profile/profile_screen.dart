@@ -3,10 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/kyc/kyc_session.dart';
+import 'package:nyto_app/core/prefs/city_prefs.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
-import 'package:nyto_app/features/settings/city_settings_screen.dart';
+import 'package:nyto_app/features/settings/area_settings_screen.dart';
 import 'package:nyto_app/features/settings/help_center_screen.dart';
 import 'package:nyto_app/features/settings/language_settings_screen.dart';
 import 'package:nyto_app/features/settings/login_security_screen.dart';
@@ -17,14 +18,17 @@ import 'package:nyto_app/features/verification/verify_identity_hub_screen.dart';
 
 /// Profile — stats + account / preferences / resources.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.onCityChanged});
+
+  /// Called with the selected area id when location changes.
+  final ValueChanged<String>? onCityChanged;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _city = 'Hyderabad, India';
+  String _area = LocationPrefs.allAreas;
   String _language = 'English';
   String _displayName = 'NYTO';
   String _initial = 'N';
@@ -34,8 +38,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _loadLocation();
     _loadMe();
     _loadVerifyStatus();
+  }
+
+  Future<void> _loadLocation() async {
+    final area = await LocationPrefs.loadArea();
+    if (!mounted) return;
+    setState(() => _area = area);
   }
 
   Future<void> _loadVerifyStatus() async {
@@ -311,17 +322,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   SettingsNavRow(
                     icon: Icons.public_rounded,
-                    label: 'City',
-                    subtitle: _city,
+                    label: 'Location',
+                    subtitle: LocationPrefs.profileSubtitle(_area),
                     onTap: () async {
                       final next = await openSettingsPage<String>(
                         context,
-                        CitySettingsScreen(
-                          selectedCity: _city.split(',').first,
-                        ),
+                        AreaSettingsScreen(selectedArea: _area),
                       );
                       if (next != null && mounted) {
-                        setState(() => _city = next);
+                        await LocationPrefs.saveArea(next);
+                        if (!mounted) return;
+                        setState(() => _area = next);
+                        widget.onCityChanged?.call(next);
                       }
                     },
                   ),

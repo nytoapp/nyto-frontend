@@ -3,15 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:nyto_app/core/api/api_client.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
+import 'package:nyto_app/core/prefs/city_prefs.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/features/booking/booking_opens_screen.dart';
 import 'package:nyto_app/features/booking/booking_type_screen.dart';
 import 'package:nyto_app/features/chat/chat_list_tab.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
+import 'package:nyto_app/features/settings/area_settings_screen.dart';
+import 'package:nyto_app/features/settings/settings_chrome.dart';
 import 'package:nyto_app/domain/table.dart';
 
 /// Soft client lanes until backend visibility windows ship (Phase B).
@@ -107,6 +112,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _tab = 0;
   List<UpcomingTable> _tables = const [];
   bool _loading = true;
+  String _city = LocationPrefs.launchCity;
+  String _area = LocationPrefs.allAreas;
+  DateTime? _nextBookingOpensAt;
 
   static const _demoTables = <UpcomingTable>[
     UpcomingTable(
@@ -165,21 +173,79 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final city = await LocationPrefs.loadCity();
+    final area = await LocationPrefs.loadArea();
+    if (!mounted) return;
+    setState(() {
+      _city = city;
+      _area = area;
+    });
+    await _maybeAskGps();
+    await _load();
+  }
+
+  Future<void> _maybeAskGps() async {
+    if (await LocationPrefs.hasAskedGps()) return;
+    await LocationPrefs.markGpsAsked();
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 8),
+        ),
+      );
+      final res = await locationsApi.nearestArea(
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
+      final area = res['area'] as String?;
+      if (area == null || area.isEmpty || !mounted) return;
+      await LocationPrefs.saveArea(area);
+      setState(() => _area = area);
+    } catch (_) {
+      // Keep All areas — GPS is optional.
+    }
   }
 
   Future<void> _load() async {
     setState(() => _loading = true);
 
     try {
-      final rows = await tablesApi
-          .list(filter: 'this_week')
+      final json = await tablesApi
+          .listRaw(
+            filter: 'this_week',
+            city: _city,
+            area: _area,
+          )
           .timeout(const Duration(seconds: 8));
       if (!mounted) return;
-      final parsed = rows.map(UpcomingTable.fromJson).toList();
+      final rows = json['tables'];
+      final parsed = rows is List
+          ? rows
+              .whereType<Map<String, dynamic>>()
+              .map(UpcomingTable.fromJson)
+              .toList()
+          : <UpcomingTable>[];
+      DateTime? nextOpens;
+      final rawNext = json['nextBookingOpensAt'];
+      if (rawNext is String) {
+        nextOpens = DateTime.tryParse(rawNext)?.toLocal();
+      }
       setState(() {
-        // Never fall back to demo-* ids — they break booking/chat.
         _tables = parsed;
+        _nextBookingOpensAt = nextOpens;
         _loading = false;
       });
     } on ApiException catch (_) {
@@ -197,8 +263,35 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _changeArea() async {
+    final next = await openSettingsPage<String>(
+      context,
+      AreaSettingsScreen(selectedArea: _area),
+    );
+    if (next == null || !mounted) return;
+    if (next == _area) return;
+    await LocationPrefs.saveArea(next);
+    if (!mounted) return;
+    setState(() => _area = next);
+    await _load();
+  }
+
+  void _onLocationFromProfile(String area) {
+    if (area.isEmpty || area == _area) return;
+    setState(() => _area = area);
+    _load();
+  }
+
   Future<void> _openTable(UpcomingTable table) async {
     if (!mounted) return;
+    if (!table.bookable) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => BookingOpensScreen(table: table),
+        ),
+      );
+      return;
+    }
     Navigator.of(context).push(
       onboardingRoute(BookingTypeScreen(table: table)),
     );
@@ -226,14 +319,20 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _HomeDiscoverTab(
                     loading: _loading,
+                    locationLabel: LocationPrefs.headerLabel(_area),
+                    nextBookingOpensAt: _nextBookingOpensAt,
                     lanes: _HomeLanes.from(_tables),
                     onOpen: _openTable,
                     onBell: () {},
                     onRefresh: _load,
+                    onChangeLocation: _changeArea,
                   ),
                   ChatListTab(active: _tab == 1),
                   const MyBookingsScreen(embedded: true),
-                  const ProfileScreen(),
+                  ProfileScreen(
+                    key: ValueKey(_area),
+                    onCityChanged: _onLocationFromProfile,
+                  ),
                 ],
               ),
             ),
@@ -251,17 +350,23 @@ class _HomeScreenState extends State<HomeScreen> {
 class _HomeDiscoverTab extends StatefulWidget {
   const _HomeDiscoverTab({
     required this.loading,
+    required this.locationLabel,
+    required this.nextBookingOpensAt,
     required this.lanes,
     required this.onOpen,
     required this.onBell,
     required this.onRefresh,
+    required this.onChangeLocation,
   });
 
   final bool loading;
+  final String locationLabel;
+  final DateTime? nextBookingOpensAt;
   final _HomeLanes lanes;
   final ValueChanged<UpcomingTable> onOpen;
   final VoidCallback onBell;
   final Future<void> Function() onRefresh;
+  final VoidCallback onChangeLocation;
 
   @override
   State<_HomeDiscoverTab> createState() => _HomeDiscoverTabState();
@@ -308,13 +413,7 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
     );
   }
 
-  String get _city {
-    final lanes = widget.lanes;
-    return lanes.invitation?.city ??
-        (lanes.open.isNotEmpty ? lanes.open.first.city : null) ??
-        (lanes.instant.isNotEmpty ? lanes.instant.first.city : null) ??
-        'Hyderabad';
-  }
+  String get _city => widget.locationLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -332,19 +431,40 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
               padding: const EdgeInsets.fromLTRB(22, 8, 12, 0),
               child: Row(
                 children: [
-                  Text(
-                    _city,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: NytoColors.cream.withValues(alpha: 0.55),
+                  InkWell(
+                    onTap: widget.onChangeLocation,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 2,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _city,
+                            style: GoogleFonts.dmSans(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: NytoColors.cream.withValues(alpha: 0.55),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.location_on_rounded,
+                            size: 14,
+                            color: NytoColors.ctaSoft.withValues(alpha: 0.85),
+                          ),
+                          const SizedBox(width: 2),
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 16,
+                            color: NytoColors.cream.withValues(alpha: 0.35),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.location_on_rounded,
-                    size: 14,
-                    color: NytoColors.ctaSoft.withValues(alpha: 0.85),
                   ),
                   const Spacer(),
                   IconButton(
@@ -404,7 +524,12 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                       ),
                     )
                   : lanes.isEmpty
-                      ? _HomeEmptyState(onRefresh: widget.onRefresh)
+                      ? _HomeEmptyState(
+                          locationLabel: widget.locationLabel,
+                          nextBookingOpensAt: widget.nextBookingOpensAt,
+                          onRefresh: widget.onRefresh,
+                          onChangeLocation: widget.onChangeLocation,
+                        )
                       : RefreshIndicator(
                           color: NytoColors.cta,
                           backgroundColor: NytoColors.surfaceElevated,
@@ -422,10 +547,14 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                                 const SizedBox(height: 10),
                                 SizedBox(
                                   height: 300,
-                                  child: _InvitationCard(
-                                    table: lanes.invitation!,
-                                    onTap: () =>
-                                        widget.onOpen(lanes.invitation!),
+                                  child: Opacity(
+                                    opacity:
+                                        lanes.invitation!.bookable ? 1 : 0.55,
+                                    child: _InvitationCard(
+                                      table: lanes.invitation!,
+                                      onTap: () =>
+                                          widget.onOpen(lanes.invitation!),
+                                    ),
                                   ),
                                 ),
                                 const SizedBox(height: 26),
@@ -454,9 +583,12 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                                               const SizedBox(width: 10),
                                           itemBuilder: (context, i) {
                                             final t = lanes.instant[i];
-                                            return _InstantRailCard(
-                                              table: t,
-                                              onTap: () => widget.onOpen(t),
+                                            return Opacity(
+                                              opacity: t.bookable ? 1 : 0.55,
+                                              child: _InstantRailCard(
+                                                table: t,
+                                                onTap: () => widget.onOpen(t),
+                                              ),
                                             );
                                           },
                                         ),
@@ -474,9 +606,12 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                                 ),
                                 const SizedBox(height: 10),
                                 for (final t in lanes.open) ...[
-                                  _OpenTableRow(
-                                    table: t,
-                                    onTap: () => widget.onOpen(t),
+                                  Opacity(
+                                    opacity: t.bookable ? 1 : 0.55,
+                                    child: _OpenTableRow(
+                                      table: t,
+                                      onTap: () => widget.onOpen(t),
+                                    ),
                                   ),
                                   const SizedBox(height: 8),
                                 ],
@@ -505,9 +640,12 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                                               const SizedBox(width: 10),
                                           itemBuilder: (context, i) {
                                             final t = lanes.comingUp[i];
-                                            return _ComingUpRailCard(
-                                              table: t,
-                                              onTap: () => widget.onOpen(t),
+                                            return Opacity(
+                                              opacity: t.bookable ? 0.72 : 0.45,
+                                              child: _ComingUpRailCard(
+                                                table: t,
+                                                onTap: () => widget.onOpen(t),
+                                              ),
                                             );
                                           },
                                         ),
@@ -663,12 +801,34 @@ class _InstantShortcut extends StatelessWidget {
 }
 
 class _HomeEmptyState extends StatelessWidget {
-  const _HomeEmptyState({required this.onRefresh});
+  const _HomeEmptyState({
+    required this.locationLabel,
+    required this.nextBookingOpensAt,
+    required this.onRefresh,
+    required this.onChangeLocation,
+  });
 
+  final String locationLabel;
+  final DateTime? nextBookingOpensAt;
   final Future<void> Function() onRefresh;
+  final VoidCallback onChangeLocation;
+
+  String? get _countdown {
+    final opens = nextBookingOpensAt;
+    if (opens == null) return null;
+    final left = opens.difference(DateTime.now());
+    if (left.isNegative) return null;
+    final d = left.inDays;
+    final h = left.inHours % 24;
+    final m = left.inMinutes % 60;
+    if (d > 0) return '${d}d ${h}h ${m}m';
+    if (h > 0) return '${h}h ${m}m';
+    return '${m}m';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final countdown = _countdown;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -682,7 +842,8 @@ class _HomeEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'No tables open yet',
+              'No tables in $locationLabel',
+              textAlign: TextAlign.center,
               style: GoogleFonts.fraunces(
                 fontSize: 22,
                 color: NytoColors.cream,
@@ -690,7 +851,9 @@ class _HomeEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'When the next drop goes live, your invite lands here.',
+              countdown == null
+                  ? 'Try another area, or refresh when the next drop goes live.'
+                  : 'Next booking window opens in $countdown.\nTables appear here dimmed until then.',
               textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
                 fontSize: 14,
@@ -700,12 +863,22 @@ class _HomeEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             TextButton(
+              onPressed: onChangeLocation,
+              child: Text(
+                'Change area',
+                style: GoogleFonts.dmSans(
+                  fontWeight: FontWeight.w700,
+                  color: NytoColors.ctaSoft,
+                ),
+              ),
+            ),
+            TextButton(
               onPressed: () => onRefresh(),
               child: Text(
                 'Refresh',
                 style: GoogleFonts.dmSans(
                   fontWeight: FontWeight.w700,
-                  color: NytoColors.ctaSoft,
+                  color: NytoColors.cream.withValues(alpha: 0.55),
                 ),
               ),
             ),

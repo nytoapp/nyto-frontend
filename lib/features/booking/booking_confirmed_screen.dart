@@ -12,11 +12,13 @@ class BookingConfirmedScreen extends StatefulWidget {
     required this.table,
     required this.bookingId,
     required this.amountPaid,
+    this.checkInCode,
   });
 
   final UpcomingTable table;
   final String bookingId;
   final int amountPaid;
+  final String? checkInCode;
 
   @override
   State<BookingConfirmedScreen> createState() => _BookingConfirmedScreenState();
@@ -62,6 +64,8 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
         builder: (_) => BookingDetailScreen(
           table: widget.table,
           bookingId: widget.bookingId,
+          checkInCode: widget.checkInCode,
+          status: 'CONFIRMED',
         ),
       ),
     );

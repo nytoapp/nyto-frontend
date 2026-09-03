@@ -88,16 +88,39 @@ class _PaymentScreenState extends State<PaymentScreen> {
     });
 
     try {
+      String? checkInCode;
       if (!widget.bookingId.startsWith('demo-')) {
-        await bookingsApi
+        final res = await bookingsApi
             .pay(
               bookingId: widget.bookingId,
               method: _method == PayMethod.upi ? 'UPI' : 'CARD',
             )
             .timeout(const Duration(seconds: 8));
+        checkInCode = res['checkInCode'] as String?;
+        final booking = res['booking'];
+        if (checkInCode == null && booking is Map<String, dynamic>) {
+          checkInCode = booking['checkInCode'] as String?;
+        }
       } else {
         throw StateError('Demo booking id');
       }
+
+      // Simulate processing delay
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      if (!mounted) return;
+      setState(() => _paying = false);
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute<void>(
+          builder: (_) => BookingConfirmedScreen(
+            table: widget.table,
+            bookingId: widget.bookingId,
+            amountPaid: _total,
+            checkInCode: checkInCode,
+          ),
+        ),
+        (route) => route.isFirst,
+      );
     } catch (_) {
       if (!mounted) return;
       setState(() => _paying = false);
@@ -109,22 +132,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
       );
       return;
     }
-
-    // Simulate processing delay
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    setState(() => _paying = false);
-
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
-        builder: (_) => BookingConfirmedScreen(
-          table: widget.table,
-          bookingId: widget.bookingId,
-          amountPaid: _total,
-        ),
-      ),
-      (route) => route.isFirst,
-    );
   }
 
   String _formatInr(int amount) {

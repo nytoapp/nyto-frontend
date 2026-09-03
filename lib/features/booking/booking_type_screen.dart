@@ -7,7 +7,7 @@ import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/invite_friends_screen.dart';
 import 'package:nyto_app/features/verification/verify_identity_hub_screen.dart';
 
-/// Book your own seat — friends join via invite link and pay themselves.
+/// How are you booking? — options depend on table type.
 class BookingTypeScreen extends StatefulWidget {
   const BookingTypeScreen({super.key, required this.table});
 
@@ -20,6 +20,49 @@ class BookingTypeScreen extends StatefulWidget {
 class _BookingTypeScreenState extends State<BookingTypeScreen> {
   bool _pressed = false;
   bool _loading = false;
+  late String _bookingType;
+  late int _seats;
+
+  @override
+  void initState() {
+    super.initState();
+    final t = widget.table.tableType;
+    if (t == NytoTableType.couples) {
+      _bookingType = 'COUPLE';
+      _seats = 2;
+    } else {
+      _bookingType = 'SOLO';
+      _seats = 1;
+    }
+  }
+
+  bool get _allowsGroup =>
+      widget.table.tableType == NytoTableType.weekly ||
+      widget.table.tableType == NytoTableType.womenLed;
+
+  String get _headline {
+    switch (widget.table.tableType) {
+      case NytoTableType.couples:
+        return 'Book as a couple';
+      case NytoTableType.singles:
+        return 'Book your seat';
+      default:
+        return 'How are you booking?';
+    }
+  }
+
+  String get _subtitle {
+    switch (widget.table.tableType) {
+      case NytoTableType.couples:
+        return 'One booking covers both of you — 2 seats on a table of 3 couples.';
+      case NytoTableType.singles:
+        return 'Solo only. Live mix aims for 3 women · 3 men.';
+      case NytoTableType.womenLed:
+        return 'Women-Led table. Solo or a small group of 2–3.';
+      case NytoTableType.weekly:
+        return 'Solo or a small group of 2–3. Friends can also join later.';
+    }
+  }
 
   Future<void> _continue() async {
     if (_loading) return;
@@ -30,8 +73,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
 
     final verified = await openVerificationGate(
       context,
-      reason:
-          'Verify before you reserve — so everyone at the table is real.',
+      reason: 'Verify before you reserve — so everyone at the table is real.',
     );
     if (!mounted) return;
     if (!verified) {
@@ -39,10 +81,9 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
       return;
     }
 
-    const seats = 1;
-    const gstRate = 0.05; // Match backend GST_RATE — confirm with CA for production.
+    const gstRate = 0.05;
     late String bookingId;
-    final seatSubtotal = widget.table.priceInr * seats;
+    final seatSubtotal = widget.table.priceInr * _seats;
     final gst = (seatSubtotal * gstRate).round();
     var total = seatSubtotal + gst;
     var sub = seatSubtotal;
@@ -52,8 +93,8 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
       final res = await bookingsApi
           .create(
             tableId: widget.table.id,
-            bookingType: 'SOLO',
-            seatsBooked: seats,
+            bookingType: _bookingType,
+            seatsBooked: _seats,
           )
           .timeout(const Duration(seconds: 8));
       final booking = res['booking'] as Map<String, dynamic>?;
@@ -97,6 +138,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final t = widget.table;
     return Scaffold(
       backgroundColor: NytoColors.bg,
       body: SafeArea(
@@ -134,7 +176,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Book your seat',
+                      _headline,
                       style: GoogleFonts.fraunces(
                         fontSize: 30,
                         fontWeight: FontWeight.w400,
@@ -144,7 +186,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'You pay for yourself. Friends can join the same table with an invite — they pay their own seat.',
+                      _subtitle,
                       style: GoogleFonts.dmSans(
                         fontSize: 14,
                         color: NytoColors.creamMuted,
@@ -153,74 +195,73 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${widget.table.weekday} ${widget.table.dateLabel} · ${widget.table.timeLabel} · ${widget.table.area}',
+                      '${t.tableTypeLabel} · ${t.weekday} ${t.dateLabel} · ${t.timeLabel} · ${t.area}',
                       style: GoogleFonts.dmSans(
                         fontSize: 12,
                         color: NytoColors.cream.withValues(alpha: 0.45),
                       ),
                     ),
-                    const SizedBox(height: 28),
-                    NytoGlass.panel(
-                      borderRadius: 18,
-                      padding: const EdgeInsets.all(18),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: NytoColors.cta.withValues(alpha: 0.18),
-                            ),
-                            child: const Icon(
-                              Icons.person_outline,
-                              color: NytoColors.cta,
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Your seat',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: NytoColors.cream,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '1 seat · matched into a table of 6',
-                                  style: GoogleFonts.dmSans(
-                                    fontSize: 13,
-                                    color: NytoColors.creamMuted,
-                                    height: 1.35,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            '₹${widget.table.priceInr}',
-                            style: GoogleFonts.fraunces(
-                              fontSize: 22,
-                              color: NytoColors.cream,
-                            ),
-                          ),
-                        ],
+                    if (t.tableType == NytoTableType.singles) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        t.seatMixLabel,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: NytoColors.ctaSoft,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Next: invite friends (optional), then pay for your seat only.',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: NytoColors.cream.withValues(alpha: 0.45),
+                    ],
+                    const SizedBox(height: 22),
+                    if (_allowsGroup) ...[
+                      _OptionCard(
+                        selected: _bookingType == 'SOLO',
+                        title: 'Solo',
+                        subtitle: '1 seat · matched into a table of 6',
+                        price: '₹${t.priceInr}',
+                        onTap: () => setState(() {
+                          _bookingType = 'SOLO';
+                          _seats = 1;
+                        }),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      _OptionCard(
+                        selected: _bookingType == 'GROUP' && _seats == 2,
+                        title: 'Group of 2',
+                        subtitle: 'You book 2 seats together',
+                        price: '₹${t.priceInr * 2}',
+                        onTap: () => setState(() {
+                          _bookingType = 'GROUP';
+                          _seats = 2;
+                        }),
+                      ),
+                      const SizedBox(height: 10),
+                      _OptionCard(
+                        selected: _bookingType == 'GROUP' && _seats == 3,
+                        title: 'Group of 3',
+                        subtitle: 'You book 3 seats together',
+                        price: '₹${t.priceInr * 3}',
+                        onTap: () => setState(() {
+                          _bookingType = 'GROUP';
+                          _seats = 3;
+                        }),
+                      ),
+                    ] else if (t.tableType == NytoTableType.couples)
+                      _OptionCard(
+                        selected: true,
+                        title: '1 couple',
+                        subtitle: '2 seats · pair on a table of 3 couples',
+                        price: '₹${t.priceInr * 2}',
+                        onTap: () {},
+                      )
+                    else
+                      _OptionCard(
+                        selected: true,
+                        title: 'Your seat',
+                        subtitle: '1 seat · Singles table of 6',
+                        price: '₹${t.priceInr}',
+                        onTap: () {},
+                      ),
                   ],
                 ),
               ),
@@ -271,6 +312,73 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OptionCard extends StatelessWidget {
+  const _OptionCard({
+    required this.selected,
+    required this.title,
+    required this.subtitle,
+    required this.price,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final String title;
+  final String subtitle;
+  final String price;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: NytoGlass.panel(
+          borderRadius: 18,
+          selected: selected,
+          padding: const EdgeInsets.all(18),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: NytoColors.cream,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 13,
+                        color: NytoColors.creamMuted,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                price,
+                style: GoogleFonts.fraunces(
+                  fontSize: 20,
+                  color: NytoColors.cream,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

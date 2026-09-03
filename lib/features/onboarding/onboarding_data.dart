@@ -117,11 +117,6 @@ class OnboardingOptions {
       hint: 'I want to be part of communities and groups.',
     ),
     (
-      id: 'host',
-      label: 'Host',
-      hint: 'I want to create experiences for others.',
-    ),
-    (
       id: 'build',
       label: 'Build',
       hint: 'I want to grow my own community.',

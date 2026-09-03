@@ -29,6 +29,11 @@ class TablesApi {
     String filter = 'this_week',
     String? city,
     String? area,
+    int? priceMin,
+    int? priceMax,
+    String? day,
+    String? tableType,
+    String? paymentType,
   }) {
     final query = <String, String>{'filter': filter};
     final trimmedCity = city?.trim();
@@ -39,6 +44,15 @@ class TablesApi {
     if (trimmedArea != null && trimmedArea.isNotEmpty) {
       query['area'] = trimmedArea;
     }
+    if (priceMin != null) query['priceMin'] = '$priceMin';
+    if (priceMax != null) query['priceMax'] = '$priceMax';
+    if (day != null && day.isNotEmpty) query['day'] = day;
+    if (tableType != null && tableType.isNotEmpty) {
+      query['tableType'] = tableType;
+    }
+    if (paymentType != null && paymentType.isNotEmpty) {
+      query['paymentType'] = paymentType;
+    }
     return _api.get('/tables', query: query);
   }
 
@@ -46,11 +60,29 @@ class TablesApi {
     String filter = 'this_week',
     String? city,
     String? area,
+    int? priceMin,
+    int? priceMax,
+    String? day,
+    String? tableType,
+    String? paymentType,
   }) async {
-    final json = await listRaw(filter: filter, city: city, area: area);
+    final json = await listRaw(
+      filter: filter,
+      city: city,
+      area: area,
+      priceMin: priceMin,
+      priceMax: priceMax,
+      day: day,
+      tableType: tableType,
+      paymentType: paymentType,
+    );
     final tables = json['tables'];
     if (tables is! List) return [];
     return tables.cast<Map<String, dynamic>>();
+  }
+
+  Future<Map<String, dynamic>> getById(String id) {
+    return _api.get('/tables/$id');
   }
 }
 

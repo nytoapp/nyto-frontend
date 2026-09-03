@@ -15,8 +15,9 @@ import 'package:nyto_app/features/onboarding/steps/night_preferences_step.dart';
 import 'package:nyto_app/features/onboarding/steps/we_know_you_step.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
-/// Get started path → matching questions → Home.
+/// Guest-only Get started path → matching questions → Home.
 /// DigiLocker + selfie happen at booking / Profile (not here).
+/// Host/venue/admin live on separate web portals — not this app.
 class OnboardingFlow extends StatefulWidget {
   const OnboardingFlow({super.key});
 
@@ -40,7 +41,6 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
   }
 
   Future<void> _finish() async {
-    // The session already exists — the auth step cannot be passed without one.
     await _syncProfile();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

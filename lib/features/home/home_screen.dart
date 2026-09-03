@@ -9,14 +9,14 @@ import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/prefs/city_prefs.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
-import 'package:nyto_app/features/booking/booking_opens_screen.dart';
-import 'package:nyto_app/features/booking/booking_type_screen.dart';
 import 'package:nyto_app/features/chat/chat_list_tab.dart';
-import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
-import 'package:nyto_app/features/profile/my_bookings_screen.dart';
+import 'package:nyto_app/features/events/events_placeholder_screen.dart';
+import 'package:nyto_app/features/home/home_table_filters.dart';
+import 'package:nyto_app/features/home/my_bookings_strip.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
 import 'package:nyto_app/features/settings/area_settings_screen.dart';
 import 'package:nyto_app/features/settings/settings_chrome.dart';
+import 'package:nyto_app/features/table/table_detail_screen.dart';
 import 'package:nyto_app/domain/table.dart';
 
 /// Soft client lanes until backend visibility windows ship (Phase B).
@@ -36,11 +36,7 @@ class _HomeLanes {
   bool get isEmpty =>
       invitation == null && open.isEmpty && instant.isEmpty && comingUp.isEmpty;
 
-  /// Phase A heuristics:
-  /// - Instant: starts within ~48h (last-minute lane)
-  /// - Open: bookable curated window (~2–5 days out)
-  /// - Coming up: further ahead
-  /// - Invitation: soonest open (or soonest overall)
+  /// Server `instant` flag + open seats on event day (Sat/Sun).
   static _HomeLanes from(List<UpcomingTable> tables, {DateTime? now}) {
     if (tables.isEmpty) return const _HomeLanes();
     final n = now ?? DateTime.now();
@@ -51,36 +47,33 @@ class _HomeLanes {
       });
 
     final instant = <UpcomingTable>[];
+    final regular = <UpcomingTable>[];
+
+    for (final t in sorted) {
+      final start = t.startsAt;
+      if (start != null && start.isBefore(n)) continue;
+      if (t.isInstant && t.bookable && t.seatsLeft > 0) {
+        instant.add(t);
+      } else {
+        regular.add(t);
+      }
+    }
+
     final open = <UpcomingTable>[];
     final coming = <UpcomingTable>[];
 
-    for (final t in sorted) {
+    for (final t in regular) {
       final start = t.startsAt;
       if (start == null) {
         open.add(t);
         continue;
       }
       final hours = start.difference(n).inHours;
-      if (hours < 0) continue; // already started
-      if (hours <= 48) {
-        instant.add(t);
-      } else if (hours <= 120) {
+      if (hours <= 120) {
         open.add(t);
       } else {
         coming.add(t);
       }
-    }
-
-    // Keep sections useful with thin seed data.
-    if (open.isEmpty && coming.isNotEmpty) {
-      open.addAll(coming.take(2));
-      coming.removeRange(0, open.length.clamp(0, coming.length));
-    }
-    if (instant.isEmpty && open.length > 2) {
-      instant.add(open.removeLast());
-    }
-    if (open.isEmpty && instant.isNotEmpty) {
-      open.add(instant.removeAt(0));
     }
 
     UpcomingTable? invitation;
@@ -115,6 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String _city = LocationPrefs.launchCity;
   String _area = LocationPrefs.allAreas;
   DateTime? _nextBookingOpensAt;
+  HomeTableFilters _filters = const HomeTableFilters();
 
   static const _demoTables = <UpcomingTable>[
     UpcomingTable(
@@ -228,16 +222,29 @@ class _HomeScreenState extends State<HomeScreen> {
             filter: 'this_week',
             city: _city,
             area: _area,
+            priceMin: _filters.priceMin,
+            priceMax: _filters.priceMax,
+            day: _filters.day,
+            tableType: _filters.tableType,
+            paymentType: _filters.paymentType,
           )
           .timeout(const Duration(seconds: 8));
       if (!mounted) return;
       final rows = json['tables'];
-      final parsed = rows is List
+      var parsed = rows is List
           ? rows
               .whereType<Map<String, dynamic>>()
               .map(UpcomingTable.fromJson)
               .toList()
           : <UpcomingTable>[];
+      if (_filters.dayLabel == 'This weekend') {
+        parsed = parsed
+            .where((t) {
+              final w = t.weekday.toLowerCase();
+              return w.startsWith('sat') || w.startsWith('sun');
+            })
+            .toList();
+      }
       DateTime? nextOpens;
       final rawNext = json['nextBookingOpensAt'];
       if (rawNext is String) {
@@ -284,16 +291,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openTable(UpcomingTable table) async {
     if (!mounted) return;
-    if (!table.bookable) {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => BookingOpensScreen(table: table),
-        ),
-      );
-      return;
-    }
     Navigator.of(context).push(
-      onboardingRoute(BookingTypeScreen(table: table)),
+      MaterialPageRoute<void>(
+        builder: (_) => TableDetailScreen(table: table),
+      ),
     );
   }
 
@@ -322,13 +323,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     locationLabel: LocationPrefs.headerLabel(_area),
                     nextBookingOpensAt: _nextBookingOpensAt,
                     lanes: _HomeLanes.from(_tables),
+                    filters: _filters,
+                    onFiltersChanged: (next) {
+                      setState(() => _filters = next);
+                      _load();
+                    },
                     onOpen: _openTable,
                     onBell: () {},
                     onRefresh: _load,
                     onChangeLocation: _changeArea,
                   ),
                   ChatListTab(active: _tab == 1),
-                  const MyBookingsScreen(embedded: true),
+                  const EventsPlaceholderScreen(),
                   ProfileScreen(
                     key: ValueKey(_area),
                     onCityChanged: _onLocationFromProfile,
@@ -353,6 +359,8 @@ class _HomeDiscoverTab extends StatefulWidget {
     required this.locationLabel,
     required this.nextBookingOpensAt,
     required this.lanes,
+    required this.filters,
+    required this.onFiltersChanged,
     required this.onOpen,
     required this.onBell,
     required this.onRefresh,
@@ -363,6 +371,8 @@ class _HomeDiscoverTab extends StatefulWidget {
   final String locationLabel;
   final DateTime? nextBookingOpensAt;
   final _HomeLanes lanes;
+  final HomeTableFilters filters;
+  final ValueChanged<HomeTableFilters> onFiltersChanged;
   final ValueChanged<UpcomingTable> onOpen;
   final VoidCallback onBell;
   final Future<void> Function() onRefresh;
@@ -502,6 +512,14 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                 ),
               ),
             ),
+            const SizedBox(height: 10),
+            const MyBookingsStrip(),
+            const SizedBox(height: 8),
+            HomeTableFiltersBar(
+              filters: widget.filters,
+              onChanged: widget.onFiltersChanged,
+            ),
+            const SizedBox(height: 10),
             if (hasInstant && !widget.loading) ...[
               const SizedBox(height: 12),
               Padding(
@@ -568,9 +586,9 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                                     children: [
                                       const _SectionLabel(
                                         eyebrow: 'INSTANT',
-                                        title: 'Going soon',
+                                        title: 'Last seats today',
                                         subtitle:
-                                            'Last-minute seats — book fast.',
+                                            'Open seats on tonight’s table — book now.',
                                         accent: NytoColors.orange,
                                       ),
                                       const SizedBox(height: 10),
@@ -1019,7 +1037,7 @@ class _InvitationCard extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          isLunch ? 'LUNCH INVITE' : 'NIGHT INVITE',
+                          table.tableTypeLabel.toUpperCase(),
                           style: GoogleFonts.dmSans(
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
@@ -1169,7 +1187,7 @@ class _OpenTableRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${table.area} · ${table.city}',
+                      '${table.tableTypeLabel} · ${table.area} · ${table.city}',
                       style: GoogleFonts.dmSans(
                         fontSize: 12,
                         color: NytoColors.cream.withValues(alpha: 0.42),
@@ -1458,8 +1476,8 @@ class _NytoBottomNav extends StatelessWidget {
                       onTap: () => onChanged(1),
                     ),
                     _NavItem(
-                      icon: Icons.event_seat_outlined,
-                      label: 'Bookings',
+                      icon: Icons.calendar_today_outlined,
+                      label: 'Events',
                       selected: index == 2,
                       onTap: () => onChanged(2),
                     ),

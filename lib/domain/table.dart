@@ -1,5 +1,35 @@
 enum MealSlot { daytimeLunch, eveningDinner }
 
+enum NytoTableType {
+  weekly,
+  womenLed,
+  couples,
+  singles,
+}
+
+enum TablePaymentType {
+  allInclusive,
+  payOwnBill,
+}
+
+NytoTableType parseTableType(String? raw) {
+  switch (raw) {
+    case 'WOMEN_LED':
+      return NytoTableType.womenLed;
+    case 'COUPLES':
+      return NytoTableType.couples;
+    case 'SINGLES':
+      return NytoTableType.singles;
+    default:
+      return NytoTableType.weekly;
+  }
+}
+
+TablePaymentType parsePaymentType(String? raw) {
+  if (raw == 'PAY_OWN_BILL') return TablePaymentType.payOwnBill;
+  return TablePaymentType.allInclusive;
+}
+
 /// Bookable NYTO table — shared across Home, booking, and chat.
 class UpcomingTable {
   const UpcomingTable({
@@ -15,12 +45,20 @@ class UpcomingTable {
     this.capacity = 6,
     this.section = 'This week',
     this.city = 'Hyderabad',
+    this.venueName,
     this.startsAt,
     this.bookingOpensAt,
     this.bookable = true,
+    this.isInstant = false,
+    this.tableType = NytoTableType.weekly,
+    this.paymentType = TablePaymentType.allInclusive,
+    this.vibeCopy,
+    this.inclusions = const [],
+    this.matchingLine,
     this.menSeated = 0,
     this.womenSeated = 0,
     this.nonBinarySeated = 0,
+    this.couplesConfirmed = 0,
   });
 
   final String id;
@@ -35,18 +73,51 @@ class UpcomingTable {
   final int capacity;
   final String section;
   final String city;
+  final String? venueName;
   final DateTime? startsAt;
   final DateTime? bookingOpensAt;
   final bool bookable;
+  final bool isInstant;
+  final NytoTableType tableType;
+  final TablePaymentType paymentType;
+  final String? vibeCopy;
+  final List<String> inclusions;
+  final String? matchingLine;
   final int menSeated;
   final int womenSeated;
   final int nonBinarySeated;
+  final int couplesConfirmed;
 
   int get seatsLeft => capacity - seatsTaken;
 
+  String get tableTypeLabel => switch (tableType) {
+        NytoTableType.weekly => 'Weekly',
+        NytoTableType.womenLed => 'Women-Led',
+        NytoTableType.couples => 'Couples',
+        NytoTableType.singles => 'Singles',
+      };
+
+  String get paymentTypeLabel => switch (paymentType) {
+        TablePaymentType.allInclusive => 'All-inclusive',
+        TablePaymentType.payOwnBill => 'Pay your own bill',
+      };
+
+  String get apiTableType => switch (tableType) {
+        NytoTableType.weekly => 'WEEKLY',
+        NytoTableType.womenLed => 'WOMEN_LED',
+        NytoTableType.couples => 'COUPLES',
+        NytoTableType.singles => 'SINGLES',
+      };
+
   String get seatMixLabel {
+    if (tableType == NytoTableType.singles) {
+      return '$womenSeated women · $menSeated men · $seatsLeft open';
+    }
+    if (tableType == NytoTableType.couples) {
+      return '$couplesConfirmed / 3 couples · $seatsLeft open';
+    }
     final parts = <String>[];
-    if (womenOnly) {
+    if (womenOnly || tableType == NytoTableType.womenLed) {
       if (womenSeated > 0) parts.add('${womenSeated}W');
     } else {
       if (womenSeated > 0) parts.add('${womenSeated}W');
@@ -80,9 +151,11 @@ class UpcomingTable {
     if (rawOpens is String) {
       bookingOpensAt = DateTime.tryParse(rawOpens)?.toLocal();
     }
-    final womenOnly = json['womenOnly'] as bool? ?? false;
-    var men = json['menSeated'] as int?;
-    var women = json['womenSeated'] as int?;
+    final tableType = parseTableType(json['tableType'] as String?);
+    final womenOnly = json['womenOnly'] as bool? ??
+        tableType == NytoTableType.womenLed;
+    var men = json['menConfirmed'] as int? ?? json['menSeated'] as int?;
+    var women = json['womenConfirmed'] as int? ?? json['womenSeated'] as int?;
     var nb = json['nonBinarySeated'] as int?;
     if (men == null && women == null && nb == null) {
       final preview = _previewMix(taken: taken, womenOnly: womenOnly);
@@ -90,6 +163,10 @@ class UpcomingTable {
       women = preview.$2;
       nb = preview.$3;
     }
+    final inclusionsRaw = json['inclusions'];
+    final inclusions = inclusionsRaw is List
+        ? inclusionsRaw.whereType<String>().toList()
+        : const <String>[];
     return UpcomingTable(
       id: json['id'] as String,
       weekday: json['weekday'] as String? ?? '',
@@ -105,12 +182,20 @@ class UpcomingTable {
       capacity: capacity,
       section: json['section'] as String? ?? 'This week',
       city: json['city'] as String? ?? 'Hyderabad',
+      venueName: json['venueName'] as String?,
       startsAt: startsAt,
       bookingOpensAt: bookingOpensAt,
       bookable: json['bookable'] as bool? ?? true,
+      isInstant: json['instant'] as bool? ?? false,
+      tableType: tableType,
+      paymentType: parsePaymentType(json['paymentType'] as String?),
+      vibeCopy: json['vibeCopy'] as String?,
+      inclusions: inclusions,
+      matchingLine: json['matchingLine'] as String?,
       menSeated: men ?? 0,
       womenSeated: women ?? 0,
       nonBinarySeated: nb ?? 0,
+      couplesConfirmed: json['couplesConfirmed'] as int? ?? 0,
     );
   }
 

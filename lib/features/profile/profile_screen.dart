@@ -7,6 +7,7 @@ import 'package:nyto_app/core/prefs/city_prefs.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
+import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/settings/area_settings_screen.dart';
 import 'package:nyto_app/features/settings/help_center_screen.dart';
 import 'package:nyto_app/features/settings/language_settings_screen.dart';
@@ -287,6 +288,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           .toList(),
                     ),
                   ],
+                ),
+              ),
+              const SizedBox(height: 22),
+              NytoGlass.panel(
+                borderRadius: 16,
+                padding: EdgeInsets.zero,
+                child: SettingsNavRow(
+                  icon: Icons.event_seat_outlined,
+                  label: 'My Bookings',
+                  subtitle: 'Upcoming nights & entry codes',
+                  onTap: () => openSettingsPage(
+                    context,
+                    const MyBookingsScreen(),
+                  ),
                 ),
               ),
               const SizedBox(height: 22),

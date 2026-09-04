@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/booking_confirmed_screen.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 enum PayMethod { upi, card }
 
@@ -34,50 +36,104 @@ class _PaymentScreenState extends State<PaymentScreen> {
   PayMethod _method = PayMethod.upi;
   bool _pressed = false;
   bool _paying = false;
+  bool _loadingConfig = true;
+  String _mode = 'stub'; // razorpay | stub
+  String? _configError;
 
-  // Card fields
-  final _cardNumCtrl = TextEditingController();
-  final _expiryCtrl = TextEditingController();
-  final _cvvCtrl = TextEditingController();
-  final _nameCtrl = TextEditingController();
+  Razorpay? _razorpay;
+  Completer<PaymentSuccessResponse>? _checkoutCompleter;
+  bool _checkoutSucceeded = false;
 
   int get _seatSubtotal => widget.seatSubtotal;
   int get _gst => widget.gst;
   int get _total => widget.total;
 
-  bool get _cardValid {
-    final num = _cardNumCtrl.text.replaceAll(' ', '');
-    final exp = _expiryCtrl.text;
-    final cvv = _cvvCtrl.text;
-    final name = _nameCtrl.text.trim();
-    return num.length >= 15 &&
-        exp.length == 5 &&
-        cvv.length >= 3 &&
-        name.isNotEmpty;
-  }
+  bool get _isRazorpay => _mode == 'razorpay';
 
-  bool get _canPay {
-    if (_method == PayMethod.card) return _cardValid;
-    return true;
-  }
+  bool get _canPay => !_loadingConfig && _configError == null;
 
   String get _payButtonLabel {
+    if (_isRazorpay) return 'Pay ${_formatInr(_total)}';
     if (_method == PayMethod.upi) return 'Continue with UPI';
     return 'Pay ${_formatInr(_total)}';
   }
 
   String get _payingLabel {
+    if (_isRazorpay) return 'Opening Razorpay…';
     if (_method == PayMethod.upi) return 'Opening payment…';
     return 'Processing…';
   }
 
   @override
+  void initState() {
+    super.initState();
+    _loadPaymentConfig();
+  }
+
+  @override
   void dispose() {
-    _cardNumCtrl.dispose();
-    _expiryCtrl.dispose();
-    _cvvCtrl.dispose();
-    _nameCtrl.dispose();
+    _razorpay?.clear();
     super.dispose();
+  }
+
+  Future<void> _loadPaymentConfig() async {
+    try {
+      final res = await bookingsApi
+          .paymentConfig()
+          .timeout(const Duration(seconds: 8));
+      if (!mounted) return;
+      setState(() {
+        _mode = (res['mode'] as String?) ?? 'stub';
+        _loadingConfig = false;
+      });
+      if (_mode == 'razorpay') {
+        _razorpay = Razorpay();
+        _razorpay!.on(Razorpay.EVENT_PAYMENT_SUCCESS, _onPaymentSuccess);
+        _razorpay!.on(Razorpay.EVENT_PAYMENT_ERROR, _onPaymentError);
+        _razorpay!.on(Razorpay.EVENT_EXTERNAL_WALLET, _onExternalWallet);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loadingConfig = false;
+        _configError = 'Could not load payment settings';
+      });
+    }
+  }
+
+  void _onPaymentSuccess(PaymentSuccessResponse response) {
+    if (_checkoutCompleter == null || _checkoutCompleter!.isCompleted) return;
+    _checkoutSucceeded = true;
+    _checkoutCompleter!.complete(response);
+    _checkoutCompleter = null;
+  }
+
+  void _onPaymentError(PaymentFailureResponse response) {
+    // Android often fires a cancel/error after a successful bank page.
+    if (_checkoutSucceeded) return;
+    if (_checkoutCompleter == null || _checkoutCompleter!.isCompleted) return;
+    final code = response.code;
+    final msg = response.message ?? 'Payment cancelled';
+    // Ignore spurious dismiss codes when Success already processed.
+    if (code == 2 || msg.toLowerCase().contains('cancelled')) {
+      // Still treat as failure if we never got SUCCESS — but delay a beat
+      // so a late SUCCESS can win the race.
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        if (_checkoutSucceeded) return;
+        if (_checkoutCompleter == null || _checkoutCompleter!.isCompleted) {
+          return;
+        }
+        _checkoutCompleter!.completeError(StateError(msg));
+        _checkoutCompleter = null;
+      });
+      return;
+    }
+    _checkoutCompleter!.completeError(StateError(msg));
+    _checkoutCompleter = null;
+  }
+
+  void _onExternalWallet(ExternalWalletResponse response) {
+    // No-op — user continues in wallet app; success/error still fire.
   }
 
   Future<void> _pay() async {
@@ -88,25 +144,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     });
 
     try {
-      String? checkInCode;
-      if (!widget.bookingId.startsWith('demo-')) {
-        final res = await bookingsApi
-            .pay(
-              bookingId: widget.bookingId,
-              method: _method == PayMethod.upi ? 'UPI' : 'CARD',
-            )
-            .timeout(const Duration(seconds: 8));
-        checkInCode = res['checkInCode'] as String?;
-        final booking = res['booking'];
-        if (checkInCode == null && booking is Map<String, dynamic>) {
-          checkInCode = booking['checkInCode'] as String?;
-        }
-      } else {
+      if (widget.bookingId.startsWith('demo-')) {
         throw StateError('Demo booking id');
       }
 
-      // Simulate processing delay
-      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      final String? checkInCode;
+      if (_isRazorpay) {
+        checkInCode = await _payWithRazorpay();
+      } else {
+        checkInCode = await _payWithStub();
+      }
+
       if (!mounted) return;
       setState(() => _paying = false);
 
@@ -121,17 +169,99 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ),
         (route) => route.isFirst,
       );
-    } catch (_) {
+    } catch (err) {
       if (!mounted) return;
       setState(() => _paying = false);
+      final detail = err.toString().replaceFirst('Exception: ', '');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payment failed. Try again.'),
+        SnackBar(
+          content: Text(
+            detail.isEmpty ? 'Payment failed. Try again.' : detail,
+            maxLines: 4,
+          ),
           backgroundColor: NytoColors.surface,
+          duration: const Duration(seconds: 6),
         ),
       );
-      return;
     }
+  }
+
+  Future<String?> _payWithStub() async {
+    final res = await bookingsApi
+        .pay(
+          bookingId: widget.bookingId,
+          method: _method == PayMethod.upi ? 'UPI' : 'CARD',
+        )
+        .timeout(const Duration(seconds: 8));
+    return _extractCheckInCode(res);
+  }
+
+  Future<String?> _payWithRazorpay() async {
+    final order = await bookingsApi
+        .createRazorpayOrder(widget.bookingId)
+        .timeout(const Duration(seconds: 12));
+
+    final keyId = order['keyId'] as String?;
+    final orderId = order['orderId'] as String?;
+    final amount = order['amount'];
+    if (keyId == null || orderId == null || amount == null) {
+      throw StateError('Invalid Razorpay order');
+    }
+
+    final completer = Completer<PaymentSuccessResponse>();
+    _checkoutCompleter = completer;
+    _checkoutSucceeded = false;
+
+    _razorpay!.open({
+      'key': keyId,
+      'amount': amount is int ? amount : int.tryParse('$amount') ?? amount,
+      'currency': 'INR',
+      'name': 'NYTO',
+      'description': 'Seat · ${widget.table.weekday} $_slotShort',
+      'order_id': orderId,
+      'theme': {'color': '#5B9FD4'},
+      'retry': {'enabled': true, 'max_count': 1},
+    });
+
+    final success = await completer.future.timeout(
+      const Duration(minutes: 5),
+      onTimeout: () {
+        _checkoutCompleter = null;
+        throw TimeoutException('Checkout timed out');
+      },
+    );
+
+    final paymentId = success.paymentId;
+    final signature = success.signature;
+    final paidOrderId = success.orderId ?? orderId;
+    if (paymentId == null ||
+        paymentId.isEmpty ||
+        signature == null ||
+        signature.isEmpty) {
+      throw StateError(
+        'Incomplete Razorpay response (paymentId/signature missing)',
+      );
+    }
+
+    final confirmed = await bookingsApi
+        .confirmRazorpay(
+          bookingId: widget.bookingId,
+          orderId: paidOrderId,
+          paymentId: paymentId,
+          signature: signature,
+        )
+        .timeout(const Duration(seconds: 12));
+
+    return _extractCheckInCode(confirmed);
+  }
+
+  String? _extractCheckInCode(Map<String, dynamic> res) {
+    var code = res['checkInCode'] as String?;
+    final booking = res['booking'];
+    if (code == null && booking is Map<String, dynamic>) {
+      code = booking['checkInCode'] as String?;
+    }
+    return code;
   }
 
   String _formatInr(int amount) {
@@ -165,7 +295,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 24, 0),
               child: Row(
@@ -190,7 +319,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ],
               ),
             ),
-            // Scrollable body
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(28, 16, 28, 16),
@@ -216,61 +344,36 @@ class _PaymentScreenState extends State<PaymentScreen> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    // Price summary
                     _buildPriceSummary(),
                     const SizedBox(height: 16),
-                    // Prepaid notice
                     _buildPrepaidNotice(),
                     const SizedBox(height: 28),
-                    // Method selector
-                    Text(
-                      'PAY VIA',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.4,
-                        color: NytoColors.creamMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _PayMethodTile(
-                            selected: _method == PayMethod.upi,
-                            icon: Icons.smartphone_outlined,
-                            title: 'UPI',
-                            subtitle: 'GPay · PhonePe · Paytm',
-                            onTap: () =>
-                                setState(() => _method = PayMethod.upi),
+                    if (_loadingConfig)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: CircularProgressIndicator(
+                            color: NytoColors.cta,
+                            strokeWidth: 2,
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _PayMethodTile(
-                            selected: _method == PayMethod.card,
-                            icon: Icons.credit_card,
-                            title: 'Card',
-                            subtitle: 'Debit · Credit',
-                            onTap: () =>
-                                setState(() => _method = PayMethod.card),
-                          ),
+                      )
+                    else if (_configError != null)
+                      Text(
+                        _configError!,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 14,
+                          color: NytoColors.creamMuted,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    // Card form or UPI picker
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 250),
-                      child: _method == PayMethod.card
-                          ? _buildCardForm()
-                          : _buildUpiSection(),
-                    ),
+                      )
+                    else if (_isRazorpay)
+                      _buildRazorpaySection()
+                    else
+                      _buildStubMethodSection(),
                   ],
                 ),
               ),
             ),
-            // Pay button
             _buildPayButton(),
           ],
         ),
@@ -398,84 +501,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 
-  Widget _buildCardForm() {
-    return Column(
-      key: const ValueKey('card'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'CARD DETAILS',
-          style: GoogleFonts.dmSans(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 1.4,
-            color: NytoColors.creamMuted,
-          ),
-        ),
-        const SizedBox(height: 14),
-        _CardField(
-          controller: _cardNumCtrl,
-          label: 'Card number',
-          hint: '1234 5678 9012 3456',
-          keyboard: TextInputType.number,
-          formatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            _CardNumberFormatter(),
-            LengthLimitingTextInputFormatter(19),
-          ],
-          icon: Icons.credit_card,
-          onChanged: (_) => setState(() {}),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _CardField(
-                controller: _expiryCtrl,
-                label: 'Expiry',
-                hint: 'MM/YY',
-                keyboard: TextInputType.number,
-                formatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  _ExpiryFormatter(),
-                  LengthLimitingTextInputFormatter(5),
-                ],
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _CardField(
-                controller: _cvvCtrl,
-                label: 'CVV',
-                hint: '•••',
-                keyboard: TextInputType.number,
-                obscure: true,
-                formatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(4),
-                ],
-                onChanged: (_) => setState(() {}),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _CardField(
-          controller: _nameCtrl,
-          label: 'Name on card',
-          hint: 'Full name',
-          keyboard: TextInputType.name,
-          textCap: TextCapitalization.words,
-          onChanged: (_) => setState(() {}),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildUpiSection() {
+  Widget _buildRazorpaySection() {
     return Container(
-      key: const ValueKey('upi'),
       width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -499,7 +526,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pay with UPI',
+                  'UPI · Card · Netbanking',
                   style: GoogleFonts.dmSans(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
@@ -508,7 +535,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Continue to choose GPay, PhonePe, Paytm, or any UPI app on your phone. Razorpay handles this at launch.',
+                  'Razorpay Checkout opens next. Use Test Mode cards/UPI from the Razorpay dashboard.',
                   style: GoogleFonts.dmSans(
                     fontSize: 13,
                     height: 1.45,
@@ -520,6 +547,56 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildStubMethodSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'PAY VIA (DEV STUB)',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.4,
+            color: NytoColors.creamMuted,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _PayMethodTile(
+                selected: _method == PayMethod.upi,
+                icon: Icons.smartphone_outlined,
+                title: 'UPI',
+                subtitle: 'Stub confirm',
+                onTap: () => setState(() => _method = PayMethod.upi),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _PayMethodTile(
+                selected: _method == PayMethod.card,
+                icon: Icons.credit_card,
+                title: 'Card',
+                subtitle: 'Stub confirm',
+                onTap: () => setState(() => _method = PayMethod.card),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Backend has no Razorpay keys — payments confirm locally without charging.',
+          style: GoogleFonts.dmSans(
+            fontSize: 13,
+            height: 1.4,
+            color: NytoColors.creamMuted,
+          ),
+        ),
+      ],
     );
   }
 
@@ -585,7 +662,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Secured · Non-refundable',
+            _isRazorpay ? 'Secured by Razorpay · Non-refundable' : 'Dev stub · Non-refundable',
             style: GoogleFonts.dmSans(
               fontSize: 12,
               color: NytoColors.creamMuted,
@@ -596,8 +673,6 @@ class _PaymentScreenState extends State<PaymentScreen> {
     );
   }
 }
-
-// ── Reusable widgets ──────────────────────────────────────────────────────
 
 class _MoneyRow extends StatelessWidget {
   const _MoneyRow({
@@ -667,8 +742,8 @@ class _PayMethodTile extends StatelessWidget {
             border: Border.all(
               color: selected
                   ? NytoColors.cta
-                  : NytoColors.cream.withValues(alpha: 0.1),
-              width: selected ? 1.4 : 1,
+                  : NytoColors.cream.withValues(alpha: 0.08),
+              width: selected ? 1.5 : 1,
             ),
           ),
           child: Column(
@@ -679,12 +754,12 @@ class _PayMethodTile extends StatelessWidget {
                 size: 22,
                 color: selected ? NytoColors.cta : NytoColors.creamMuted,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Text(
                 title,
                 style: GoogleFonts.dmSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
                   color: NytoColors.cream,
                 ),
               ),
@@ -692,7 +767,7 @@ class _PayMethodTile extends StatelessWidget {
               Text(
                 subtitle,
                 style: GoogleFonts.dmSans(
-                  fontSize: 11,
+                  fontSize: 12,
                   color: NytoColors.creamMuted,
                 ),
               ),
@@ -700,123 +775,6 @@ class _PayMethodTile extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _CardField extends StatelessWidget {
-  const _CardField({
-    required this.controller,
-    required this.label,
-    required this.hint,
-    this.keyboard = TextInputType.text,
-    this.obscure = false,
-    this.formatters = const [],
-    this.icon,
-    this.textCap = TextCapitalization.none,
-    this.onChanged,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String hint;
-  final TextInputType keyboard;
-  final bool obscure;
-  final List<TextInputFormatter> formatters;
-  final IconData? icon;
-  final TextCapitalization textCap;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      keyboardType: keyboard,
-      obscureText: obscure,
-      textCapitalization: textCap,
-      inputFormatters: formatters,
-      onChanged: onChanged,
-      style: GoogleFonts.jetBrainsMono(
-        fontSize: 16,
-        color: NytoColors.cream,
-      ),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: GoogleFonts.dmSans(
-          fontSize: 13,
-          color: NytoColors.creamMuted,
-        ),
-        hintText: hint,
-        hintStyle: GoogleFonts.jetBrainsMono(
-          fontSize: 15,
-          color: NytoColors.cream.withValues(alpha: 0.2),
-        ),
-        prefixIcon: icon != null
-            ? Icon(icon, size: 20, color: NytoColors.creamMuted)
-            : null,
-        filled: true,
-        fillColor: NytoColors.surface,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: NytoColors.cream.withValues(alpha: 0.1),
-          ),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(
-            color: NytoColors.cream.withValues(alpha: 0.1),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: NytoColors.cta, width: 1.4),
-        ),
-      ),
-    );
-  }
-}
-
-/// Formats card number as `1234 5678 9012 3456`.
-class _CardNumberFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final digits = newValue.text.replaceAll(' ', '');
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length; i++) {
-      if (i > 0 && i % 4 == 0) buf.write(' ');
-      buf.write(digits[i]);
-    }
-    final text = buf.toString();
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
-    );
-  }
-}
-
-/// Formats expiry as `MM/YY`.
-class _ExpiryFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    final digits = newValue.text.replaceAll('/', '');
-    final buf = StringBuffer();
-    for (var i = 0; i < digits.length && i < 4; i++) {
-      if (i == 2) buf.write('/');
-      buf.write(digits[i]);
-    }
-    final text = buf.toString();
-    return TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }

@@ -125,6 +125,32 @@ class BookingsApi {
     );
   }
 
+  Future<Map<String, dynamic>> paymentConfig() {
+    return _api.get('/bookings/payment-config', auth: true);
+  }
+
+  Future<Map<String, dynamic>> createRazorpayOrder(String bookingId) {
+    return _api.post('/bookings/$bookingId/razorpay/order', auth: true);
+  }
+
+  Future<Map<String, dynamic>> confirmRazorpay({
+    required String bookingId,
+    required String orderId,
+    required String paymentId,
+    required String signature,
+  }) {
+    return _api.post(
+      '/bookings/$bookingId/razorpay/confirm',
+      auth: true,
+      body: {
+        'razorpay_order_id': orderId,
+        'razorpay_payment_id': paymentId,
+        'razorpay_signature': signature,
+      },
+    );
+  }
+
+  /// Dev stub pay — only works when backend Razorpay keys are empty.
   Future<Map<String, dynamic>> pay({
     required String bookingId,
     required String method,

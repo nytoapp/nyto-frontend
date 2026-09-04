@@ -13,10 +13,14 @@ class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({
     super.key,
     this.embedded = false,
+    this.active = false,
   });
 
   /// When true (bottom-nav Bookings tab): no back chrome.
   final bool embedded;
+
+  /// When used as a tab, reload whenever this becomes the selected tab.
+  final bool active;
 
   @override
   State<MyBookingsScreen> createState() => _MyBookingsScreenState();
@@ -31,6 +35,12 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant MyBookingsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) _load();
   }
 
   Future<void> _load() async {

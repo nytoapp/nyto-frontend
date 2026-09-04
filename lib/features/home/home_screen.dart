@@ -10,9 +10,8 @@ import 'package:nyto_app/core/prefs/city_prefs.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/chat/chat_list_tab.dart';
-import 'package:nyto_app/features/events/events_placeholder_screen.dart';
 import 'package:nyto_app/features/home/home_table_filters.dart';
-import 'package:nyto_app/features/home/my_bookings_strip.dart';
+import 'package:nyto_app/features/profile/my_bookings_screen.dart';
 import 'package:nyto_app/features/profile/profile_screen.dart';
 import 'package:nyto_app/features/settings/area_settings_screen.dart';
 import 'package:nyto_app/features/settings/settings_chrome.dart';
@@ -334,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     onChangeLocation: _changeArea,
                   ),
                   ChatListTab(active: _tab == 1),
-                  const EventsPlaceholderScreen(),
+                  MyBookingsScreen(embedded: true, active: _tab == 2),
                   ProfileScreen(
                     key: ValueKey(_area),
                     onCityChanged: _onLocationFromProfile,
@@ -513,8 +512,6 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
               ),
             ),
             const SizedBox(height: 10),
-            const MyBookingsStrip(),
-            const SizedBox(height: 8),
             HomeTableFiltersBar(
               filters: widget.filters,
               onChanged: widget.onFiltersChanged,
@@ -1476,8 +1473,8 @@ class _NytoBottomNav extends StatelessWidget {
                       onTap: () => onChanged(1),
                     ),
                     _NavItem(
-                      icon: Icons.calendar_today_outlined,
-                      label: 'Events',
+                      icon: Icons.confirmation_number_outlined,
+                      label: 'Bookings',
                       selected: index == 2,
                       onTap: () => onChanged(2),
                     ),

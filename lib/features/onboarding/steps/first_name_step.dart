@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/core/profile/profile_name.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
@@ -22,6 +23,8 @@ class FirstNameStep extends StatefulWidget {
 class _FirstNameStepState extends State<FirstNameStep> {
   late final TextEditingController _name;
   final FocusNode _focus = FocusNode();
+  bool _saving = false;
+  String? _error;
 
   @override
   void initState() {
@@ -36,13 +39,29 @@ class _FirstNameStepState extends State<FirstNameStep> {
     super.dispose();
   }
 
-  bool get _ok => _name.text.trim().length >= 2;
+  bool get _ok => _name.text.trim().length >= 2 && !_saving;
 
-  void _go() {
+  Future<void> _go() async {
     if (!_ok) return;
     FocusScope.of(context).unfocus();
-    widget.data.firstName = _name.text.trim();
-    widget.onContinue();
+    final name = _name.text.trim();
+    widget.data.firstName = name;
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    try {
+      final saved = await ProfileName.save(name);
+      widget.data.firstName = saved;
+      if (!mounted) return;
+      widget.onContinue();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = 'Could not save your name. Try again.';
+      });
+    }
   }
 
   @override
@@ -54,7 +73,7 @@ class _FirstNameStepState extends State<FirstNameStep> {
       totalSteps: OnboardingData.totalSteps,
       resizeForKeyboard: true,
       footer: NytoPrimaryButton(
-        label: 'Continue',
+        label: _saving ? 'Saving…' : 'Continue',
         enabled: _ok,
         onPressed: _ok ? _go : null,
       ),
@@ -109,10 +128,12 @@ class _FirstNameStepState extends State<FirstNameStep> {
           ),
           const SizedBox(height: 12),
           Text(
-            'At least 2 letters. You can change this later.',
+            _error ?? 'At least 2 letters. You can change this later.',
             style: GoogleFonts.dmSans(
               fontSize: 12.5,
-              color: NytoColors.cream.withValues(alpha: 0.38),
+              color: _error == null
+                  ? NytoColors.cream.withValues(alpha: 0.38)
+                  : const Color(0xFFE8A0A0),
             ),
           ),
         ],

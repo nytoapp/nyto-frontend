@@ -94,14 +94,17 @@ class _HomeLanes {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({super.key, this.initialTab = 0});
+
+  /// 0 Home · 1 Chat · 2 Bookings · 3 Profile
+  final int initialTab;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _tab = 0;
+  late int _tab;
   List<UpcomingTable> _tables = const [];
   bool _loading = true;
   String _city = LocationPrefs.launchCity;
@@ -166,6 +169,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTab.clamp(0, 3);
     _boot();
   }
 
@@ -542,6 +546,7 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                       ? _HomeEmptyState(
                           locationLabel: widget.locationLabel,
                           nextBookingOpensAt: widget.nextBookingOpensAt,
+                          filtersActive: widget.filters.hasActiveFilters,
                           onRefresh: widget.onRefresh,
                           onChangeLocation: widget.onChangeLocation,
                         )
@@ -819,12 +824,14 @@ class _HomeEmptyState extends StatelessWidget {
   const _HomeEmptyState({
     required this.locationLabel,
     required this.nextBookingOpensAt,
+    required this.filtersActive,
     required this.onRefresh,
     required this.onChangeLocation,
   });
 
   final String locationLabel;
   final DateTime? nextBookingOpensAt;
+  final bool filtersActive;
   final Future<void> Function() onRefresh;
   final VoidCallback onChangeLocation;
 
@@ -857,7 +864,9 @@ class _HomeEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 14),
             Text(
-              'No tables in $locationLabel',
+              filtersActive
+                  ? 'No tables match these filters'
+                  : 'No tables in $locationLabel',
               textAlign: TextAlign.center,
               style: GoogleFonts.fraunces(
                 fontSize: 22,
@@ -866,9 +875,11 @@ class _HomeEmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              countdown == null
-                  ? 'Try another area, or refresh when the next drop goes live.'
-                  : 'Next booking window opens in $countdown.\nTables appear here dimmed until then.',
+              filtersActive
+                  ? 'Filters stack together. Clear one, or pick Any, to see more seats.'
+                  : countdown == null
+                      ? 'Try another area, or refresh when the next drop goes live.'
+                      : 'Next booking window opens in $countdown.\nTables appear here dimmed until then.',
               textAlign: TextAlign.center,
               style: GoogleFonts.dmSans(
                 fontSize: 14,

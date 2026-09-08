@@ -5,6 +5,7 @@ import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/invite_friends_screen.dart';
+import 'package:nyto_app/features/booking/table_profile_screen.dart';
 import 'package:nyto_app/features/verification/verify_identity_hub_screen.dart';
 
 /// How are you booking? — options depend on table type.
@@ -81,6 +82,38 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
       return;
     }
 
+    if (!await _ensureTableProfile()) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      return;
+    }
+
+    await _createBooking();
+  }
+
+  Future<bool> _ensureTableProfile() async {
+    try {
+      final me = await authApi.me().timeout(const Duration(seconds: 8));
+      final raw = me['user'];
+      final user = raw is Map ? raw.cast<String, dynamic>() : null;
+      if (tableProfileComplete(user, widget.table.tableType)) return true;
+    } catch (_) {
+      // Still ask — matching needs these answers.
+    }
+    if (!mounted) return false;
+
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => TableProfileScreen(
+          table: widget.table,
+          onSaved: () => Navigator.of(context).pop(true),
+        ),
+      ),
+    );
+    return saved == true;
+  }
+
+  Future<void> _createBooking() async {
     const gstRate = 0.05;
     late String bookingId;
     final seatSubtotal = widget.table.priceInr * _seats;

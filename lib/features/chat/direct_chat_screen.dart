@@ -345,7 +345,26 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
             ),
             Expanded(child: _body()),
             if (_incomingRequest) _requestBar(),
-            if (!_incomingRequest) _composer(),
+            if (!_incomingRequest && _status == 'ACTIVE') _composer(),
+            if (!_incomingRequest && _status == 'PENDING')
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                child: Text(
+                  _messages.any((m) => m.isYou)
+                      ? 'Request sent. They need to accept.'
+                      : 'Send one message. They have to accept before you can chat.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: NytoColors.creamMuted,
+                  ),
+                ),
+              ),
+            if (!_incomingRequest &&
+                _status == 'PENDING' &&
+                !_messages.any((m) => m.isYou))
+              _composer(),
             Padding(
               padding: const EdgeInsets.only(bottom: 10, top: 4),
               child: Text(
@@ -454,7 +473,7 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
       child: Column(
         children: [
           Text(
-            '${widget.peerName} wants to chat. Accept, or reply to accept.',
+            '${widget.peerName} wants to chat. Accept to reply.',
             textAlign: TextAlign.center,
             style: GoogleFonts.dmSans(
               fontSize: 13,
@@ -489,8 +508,6 @@ class _DirectChatScreenState extends State<DirectChatScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          _composer(),
         ],
       ),
     );

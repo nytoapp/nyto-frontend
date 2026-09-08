@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
+import 'package:nyto_app/core/profile/profile_name.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/steps/age_step.dart';
@@ -32,8 +33,18 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
     Navigator.of(context).push(onboardingRoute(page));
   }
 
+  Future<void> _saveFirstName() async {
+    final name = _data.firstName.trim();
+    if (name.length < 2) return;
+    try {
+      _data.firstName = await ProfileName.save(name);
+    } catch (_) {}
+  }
+
   Future<void> _syncProfile() async {
+    await _saveFirstName();
     final body = _data.toProfilePatch();
+    body.remove('firstName');
     if (body.isEmpty) return;
     try {
       await authApi.updateMe(body);
@@ -62,7 +73,13 @@ class _OnboardingFlowState extends State<OnboardingFlow> {
       );
 
   void _toFirstName() => _open(
-        FirstNameStep(data: _data, onContinue: _toAge),
+        FirstNameStep(
+          data: _data,
+          onContinue: () {
+            _saveFirstName();
+            _toAge();
+          },
+        ),
       );
 
   void _toAge() => _open(

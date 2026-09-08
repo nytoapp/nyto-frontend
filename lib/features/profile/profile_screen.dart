@@ -4,6 +4,7 @@ import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/kyc/kyc_session.dart';
 import 'package:nyto_app/core/prefs/city_prefs.dart';
+import 'package:nyto_app/core/profile/profile_name.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
@@ -29,19 +30,50 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  static const _streakGoal = 3;
+
   String _area = LocationPrefs.allAreas;
   String _language = 'English';
-  String _displayName = 'NYTO';
-  String _initial = 'N';
+  String _displayName = '';
+  String _initial = '';
+  bool _nameMissing = true;
+  late final TextEditingController _nameController;
+  final FocusNode _nameFocus = FocusNode();
+  int _attended = 0;
+  int _streak = 0;
   String _verifyStatus = 'Not verified';
   bool _loggingOut = false;
+  bool _savingName = false;
 
   @override
   void initState() {
     super.initState();
+    _nameController = TextEditingController();
     _loadLocation();
     _loadMe();
     _loadVerifyStatus();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _nameFocus.dispose();
+    super.dispose();
+  }
+
+  void _applyName(String? raw) {
+    final name = ProfileName.real(raw);
+    if (name == null) {
+      _nameMissing = true;
+      _displayName = '';
+      _initial = '';
+      if (_nameController.text.isEmpty) _nameController.text = '';
+      return;
+    }
+    _nameMissing = false;
+    _displayName = name;
+    _initial = name[0].toUpperCase();
+    _nameController.text = name;
   }
 
   Future<void> _loadLocation() async {
@@ -56,22 +88,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _verifyStatus = label);
   }
 
+  int _readCount(Object? raw) {
+    if (raw is int) return raw;
+    if (raw is num) return raw.toInt();
+    return 0;
+  }
+
   Future<void> _loadMe() async {
+    final local = await ProfileName.loadLocal();
+    if (mounted && local != null) {
+      setState(() => _applyName(local));
+    }
     try {
       final json = await authApi.me();
       final user = json['user'];
-      if (user is! Map) return;
+      if (user is! Map || !mounted) return;
       final first = (user['firstName'] as String?)?.trim();
       final full = (user['fullName'] as String?)?.trim();
-      final name = (first != null && first.isNotEmpty)
-          ? first
-          : (full != null && full.isNotEmpty ? full : null);
-      if (!mounted || name == null) return;
+      final stored = ProfileName.real(first) ?? ProfileName.real(full) ?? local;
       setState(() {
-        _displayName = name;
-        _initial = name[0].toUpperCase();
+        _applyName(stored);
+        _attended = _readCount(user['attendanceCount']);
+        _streak = _readCount(user['currentStreak']);
       });
+      if (ProfileName.real(first) == null && stored != null) {
+        try {
+          await ProfileName.save(stored);
+        } catch (_) {}
+      }
     } catch (_) {}
+  }
+
+  Future<void> _saveTypedName() async {
+    if (_savingName) return;
+    final next = _nameController.text.trim();
+    if (next.length < 2) return;
+    setState(() => _savingName = true);
+    try {
+      final saved = await ProfileName.save(next);
+      if (!mounted) return;
+      setState(() => _applyName(saved));
+      _nameFocus.unfocus();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not save your name. Try again.')),
+      );
+    } finally {
+      if (mounted) setState(() => _savingName = false);
+    }
   }
 
   Future<void> _logOut() async {
@@ -128,42 +193,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: NytoColors.cta,
                       shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      _initial,
-                      style: GoogleFonts.fraunces(
-                        fontSize: 32,
-                        color: NytoColors.cream,
-                      ),
-                    ),
+                    child: _initial.isEmpty
+                        ? const Icon(
+                            Icons.person_outline,
+                            color: NytoColors.cream,
+                            size: 32,
+                          )
+                        : Text(
+                            _initial,
+                            style: GoogleFonts.fraunces(
+                              fontSize: 32,
+                              color: NytoColors.cream,
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                _displayName,
-                                style: GoogleFonts.fraunces(
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w400,
-                                  color: NytoColors.cream,
+                        if (_nameMissing)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _nameController,
+                                  focusNode: _nameFocus,
+                                  autofocus: true,
+                                  textCapitalization: TextCapitalization.words,
+                                  textInputAction: TextInputAction.done,
+                                  maxLength: 40,
+                                  onSubmitted: (_) => _saveTypedName(),
+                                  style: GoogleFonts.fraunces(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w400,
+                                    color: NytoColors.cream,
+                                  ),
+                                  cursorColor: NytoColors.cta,
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    counterText: '',
+                                    hintText: 'First name',
+                                    hintStyle: GoogleFonts.fraunces(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w400,
+                                      color: NytoColors.creamMuted,
+                                    ),
+                                    border: InputBorder.none,
+                                  ),
                                 ),
                               ),
+                              TextButton(
+                                onPressed: _savingName ? null : _saveTypedName,
+                                child: Text(
+                                  _savingName ? 'Saving' : 'Save',
+                                  style: GoogleFonts.dmSans(
+                                    color: NytoColors.cta,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        else
+                          Text(
+                            _displayName,
+                            style: GoogleFonts.fraunces(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w400,
+                              color: NytoColors.cream,
                             ),
-                            const SizedBox(width: 8),
-                            const Icon(
-                              Icons.verified,
-                              size: 18,
-                              color: NytoColors.cta,
-                            ),
-                          ],
-                        ),
+                          ),
                         const SizedBox(height: 4),
                         Text(
-                          'Hyderabad · Jubilee Hills',
+                          LocationPrefs.profileSubtitle(_area),
                           style: GoogleFonts.dmSans(
                             fontSize: 13,
                             color: NytoColors.creamMuted,
@@ -205,7 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Text(
-                          '3',
+                          '$_attended',
                           style: GoogleFonts.fraunces(
                             fontSize: 48,
                             fontWeight: FontWeight.w400,
@@ -253,7 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         const Spacer(),
                         Text(
-                          '2 / 3 to unlock next discount',
+                          '${_streak.clamp(0, _streakGoal)} / $_streakGoal to unlock next discount',
                           style: GoogleFonts.dmSans(
                             fontSize: 12,
                             color: NytoColors.creamMuted,
@@ -265,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
-                        value: 2 / 3,
+                        value: _streak.clamp(0, _streakGoal) / _streakGoal,
                         minHeight: 6,
                         backgroundColor:
                             NytoColors.cream.withValues(alpha: 0.1),

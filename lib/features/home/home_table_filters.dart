@@ -117,9 +117,9 @@ class HomeTableFiltersBar extends StatelessWidget {
 
   Future<void> _pickPrice(BuildContext context) async {
     final selectedKey = switch (filters.priceLabel) {
-      'Under ₹1,500' => 'under_1500',
-      '₹1,500 – ₹2,500' => 'mid',
-      'Over ₹2,500' => 'over_2500',
+      'Under ₹1,000' => 'under_1000',
+      '₹1,000 – ₹1,200' => 'mid',
+      'Over ₹1,200' => 'over_1200',
       _ => 'any',
     };
     final choice = await showModalBottomSheet<String>(
@@ -132,39 +132,39 @@ class HomeTableFiltersBar extends StatelessWidget {
         title: 'Price per seat',
         options: const [
           ('Any price', 'any'),
-          ('Under ₹1,500', 'under_1500'),
-          ('₹1,500 – ₹2,500', 'mid'),
-          ('Over ₹2,500', 'over_2500'),
+          ('Under ₹1,000', 'under_1000'),
+          ('₹1,000 – ₹1,200', 'mid'),
+          ('Over ₹1,200', 'over_1200'),
         ],
         selected: selectedKey,
       ),
     );
     if (choice == null || !context.mounted) return;
     switch (choice) {
-      case 'under_1500':
+      case 'under_1000':
         onChanged(
           filters.copyWith(
             priceMin: null,
             clearPriceMin: true,
-            priceMax: 1499,
-            priceLabel: 'Under ₹1,500',
+            priceMax: 999,
+            priceLabel: 'Under ₹1,000',
           ),
         );
       case 'mid':
         onChanged(
           filters.copyWith(
-            priceMin: 1500,
-            priceMax: 2500,
-            priceLabel: '₹1,500 – ₹2,500',
+            priceMin: 1000,
+            priceMax: 1200,
+            priceLabel: '₹1,000 – ₹1,200',
           ),
         );
-      case 'over_2500':
+      case 'over_1200':
         onChanged(
           filters.copyWith(
-            priceMin: 2501,
+            priceMin: 1201,
             clearPriceMax: true,
             priceMax: null,
-            priceLabel: 'Over ₹2,500',
+            priceLabel: 'Over ₹1,200',
           ),
         );
       default:

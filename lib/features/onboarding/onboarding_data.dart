@@ -59,12 +59,9 @@ class OnboardingData {
     if (socialEnergy != null && socialEnergy!.isNotEmpty) {
       body['socialEnergy'] = socialEnergy;
     }
-
-    final local = phone.replaceAll(RegExp(r'\D'), '');
-    final dial = countryDial.replaceAll(RegExp(r'\D'), '');
-    if (local.length >= 8) {
-      body['phone'] = '$dial$local';
-    }
+    // Phone is already the verified identity from OTP. Sending it again
+    // rewrites the country code and the server rejects the whole profile,
+    // which is why firstName stayed "Guest".
     return body;
   }
 }

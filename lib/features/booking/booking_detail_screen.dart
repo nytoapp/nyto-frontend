@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:nyto_app/core/api/api_client.dart';
 import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
@@ -18,12 +17,17 @@ class BookingDetailScreen extends StatefulWidget {
     required this.bookingId,
     this.checkInCode,
     this.status,
+    this.exitToBookings = false,
   });
 
   final UpcomingTable table;
   final String bookingId;
   final String? checkInCode;
   final String? status;
+
+  /// After payment, the stack has no Bookings tab under this screen.
+  /// Back should reset to Home on the Bookings tab instead of popping.
+  final bool exitToBookings;
 
   @override
   State<BookingDetailScreen> createState() => _BookingDetailScreenState();
@@ -34,7 +38,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   String? _checkInCode;
   String _status = 'CONFIRMED';
   bool _loading = false;
-  bool _cancelling = false;
 
   static const _dayMap = {
     'Fri': 'Friday',
@@ -59,8 +62,8 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   String get _slot =>
       _table.slot == MealSlot.daytimeLunch ? 'Daytime' : 'Evening';
 
-  bool get _canCancel =>
-      _status == 'PENDING_PAYMENT' || _status == 'CONFIRMED';
+  bool get _isPaidSeat =>
+      _status == 'CONFIRMED' || _status == 'ATTENDED';
 
   Future<void> _refresh() async {
     if (widget.bookingId.startsWith('demo-')) return;
@@ -92,6 +95,19 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     }
   }
 
+  void _leave() {
+    if (!widget.exitToBookings && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+      return;
+    }
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const HomeScreen(initialTab: 2),
+      ),
+      (_) => false,
+    );
+  }
+
   void _openChat() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -118,76 +134,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
-  Future<void> _cancel() async {
-    if (!_canCancel || _cancelling) return;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: NytoColors.surface,
-        title: Text(
-          'Cancel this booking?',
-          style: GoogleFonts.fraunces(color: NytoColors.cream),
-        ),
-        content: Text(
-          'Your seat will be released. Paid bookings are refunded as a stub for now.',
-          style: GoogleFonts.dmSans(
-            color: NytoColors.cream.withValues(alpha: 0.7),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Keep', style: GoogleFonts.dmSans(color: NytoColors.cream)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(
-              'Cancel booking',
-              style: GoogleFonts.dmSans(color: NytoColors.ctaSoft),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-
-    setState(() => _cancelling = true);
-    try {
-      await bookingsApi
-          .cancel(widget.bookingId)
-          .timeout(const Duration(seconds: 8));
-      if (!mounted) return;
-      setState(() {
-        _status = 'CANCELLED';
-        _cancelling = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Booking cancelled'),
-          backgroundColor: NytoColors.surface,
-        ),
-      );
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() => _cancelling = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.message),
-          backgroundColor: NytoColors.surface,
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _cancelling = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Couldn’t cancel. Try again.'),
-          backgroundColor: NytoColors.surface,
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final showCode = _checkInCode != null &&
@@ -204,14 +150,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () {
-                      Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const HomeScreen(),
-                        ),
-                        (_) => false,
-                      );
-                    },
+                    onPressed: _leave,
                     icon: Icon(
                       Icons.arrow_back_ios_new,
                       size: 18,
@@ -467,7 +406,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                       ],
                     ),
                   ),
-                  if (_status != 'CANCELLED') ...[
+                  if (_isPaidSeat) ...[
                     const SizedBox(height: 28),
                     SizedBox(
                       width: double.infinity,
@@ -489,19 +428,6 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  if (_canCancel) ...[
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: _cancelling ? null : _cancel,
-                      child: Text(
-                        _cancelling ? 'Cancelling…' : 'Cancel booking',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          color: NytoColors.cream.withValues(alpha: 0.45),
                         ),
                       ),
                     ),

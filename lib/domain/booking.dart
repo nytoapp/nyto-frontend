@@ -33,8 +33,14 @@ class BookingSummary {
   bool get isConfirmed =>
       status == 'CONFIRMED' || status == 'ATTENDED';
 
-  bool get canCancel =>
-      status == 'PENDING_PAYMENT' || status == 'CONFIRMED';
+  /// Paid seats stay locked. Unpaid holds never appear as a real booking.
+  bool get canCancel => false;
+
+  bool get isPaidSeat =>
+      status == 'CONFIRMED' || status == 'ATTENDED';
+
+  bool get isCancelled =>
+      status == 'CANCELLED' || status == 'NO_SHOW';
 
   String get statusLabel => switch (status) {
         'PENDING_PAYMENT' => 'Awaiting payment',

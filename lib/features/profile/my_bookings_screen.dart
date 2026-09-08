@@ -26,10 +26,13 @@ class MyBookingsScreen extends StatefulWidget {
   State<MyBookingsScreen> createState() => _MyBookingsScreenState();
 }
 
+enum _BookingLane { upcoming, past, cancelled }
+
 class _MyBookingsScreenState extends State<MyBookingsScreen> {
   List<BookingSummary> _bookings = const [];
   bool _loading = true;
   String? _error;
+  _BookingLane _lane = _BookingLane.upcoming;
 
   @override
   void initState() {
@@ -74,7 +77,35 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     }
   }
 
+  bool _isPast(BookingSummary booking) {
+    if (booking.status == 'ATTENDED') return true;
+    final startsAt = booking.table?.startsAt;
+    if (startsAt == null) return false;
+    return !startsAt.isAfter(DateTime.now());
+  }
+
+  List<BookingSummary> get _visible {
+    final rows = _bookings.where((b) => b.status != 'PENDING_PAYMENT');
+    return switch (_lane) {
+      _BookingLane.upcoming => rows
+          .where((b) => b.isPaidSeat && !_isPast(b))
+          .toList(),
+      _BookingLane.past =>
+        rows.where((b) => b.isPaidSeat && _isPast(b)).toList(),
+      _BookingLane.cancelled =>
+        rows.where((b) => b.isCancelled).toList(),
+    };
+  }
+
+  String get _emptyCopy => switch (_lane) {
+        _BookingLane.upcoming =>
+          'No upcoming nights.\nReserve a seat from Home.',
+        _BookingLane.past => 'No past nights yet.',
+        _BookingLane.cancelled => 'No cancelled bookings.',
+      };
+
   Future<void> _open(BookingSummary booking) async {
+    if (!booking.isPaidSeat && !booking.isCancelled) return;
     final table = booking.table;
     if (table == null) return;
     await Navigator.of(context).push(
@@ -117,7 +148,12 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
               color: NytoColors.cream.withValues(alpha: 0.48),
             ),
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
+          _BookingLaneBar(
+            lane: _lane,
+            onChanged: (next) => setState(() => _lane = next),
+          ),
+          const SizedBox(height: 16),
           if (_loading)
             const Padding(
               padding: EdgeInsets.only(top: 48),
@@ -149,11 +185,11 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                 ],
               ),
             )
-          else if (_bookings.isEmpty)
+          else if (_visible.isEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 48),
               child: Text(
-                'No nights booked yet.\nReserve a seat from Home.',
+                _emptyCopy,
                 textAlign: TextAlign.center,
                 style: GoogleFonts.dmSans(
                   fontSize: 14,
@@ -163,7 +199,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
               ),
             )
           else
-            for (final b in _bookings) ...[
+            for (final b in _visible) ...[
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Material(
@@ -284,6 +320,62 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
     return SettingsPageScaffold(
       title: 'My Bookings',
       child: body,
+    );
+  }
+}
+
+class _BookingLaneBar extends StatelessWidget {
+  const _BookingLaneBar({
+    required this.lane,
+    required this.onChanged,
+  });
+
+  final _BookingLane lane;
+  final ValueChanged<_BookingLane> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _chip('Upcoming', _BookingLane.upcoming),
+        const SizedBox(width: 8),
+        _chip('Past', _BookingLane.past),
+        const SizedBox(width: 8),
+        _chip('Cancelled', _BookingLane.cancelled),
+      ],
+    );
+  }
+
+  Widget _chip(String label, _BookingLane value) {
+    final selected = lane == value;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => onChanged(value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? NytoColors.cta.withValues(alpha: 0.22)
+                : Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: selected
+                  ? NytoColors.cta
+                  : NytoColors.cream.withValues(alpha: 0.12),
+            ),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: selected ? NytoColors.ctaSoft : NytoColors.creamMuted,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

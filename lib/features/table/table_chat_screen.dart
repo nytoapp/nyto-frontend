@@ -83,6 +83,7 @@ class _TableChatScreenState extends State<TableChatScreen> {
   bool _sending = false;
   bool _canSend = true;
   String _chatState = 'ACTIVE';
+  DateTime? _eventEndsAt;
   String? _error;
   String? _myUserId;
   io.Socket? _socket;
@@ -162,6 +163,8 @@ class _TableChatScreenState extends State<TableChatScreen> {
         }
         _canSend = chat?['canSend'] == true;
         _chatState = chat?['state'] as String? ?? 'ACTIVE';
+        _eventEndsAt = DateTime.tryParse(chat?['eventEndsAt'] as String? ?? '')
+            ?.toLocal();
         _loading = false;
       });
       _scrollToBottom();
@@ -299,7 +302,22 @@ class _TableChatScreenState extends State<TableChatScreen> {
     return NytoColors.surface;
   }
 
+  bool get _meetupEnded {
+    final ends = _eventEndsAt;
+    if (ends == null) return false;
+    return !DateTime.now().isBefore(ends);
+  }
+
   Future<void> _openDirect(_Member member) async {
+    if (!_meetupEnded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Private chat opens after the night, if they accept'),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+      return;
+    }
     try {
       final res = await chatApi.openDirect(member.id);
       final conversation = res['conversation'] as Map<String, dynamic>?;
@@ -489,52 +507,71 @@ class _TableChatScreenState extends State<TableChatScreen> {
         ),
       );
     }
-    return SizedBox(
-      height: 78,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: _members.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
-        itemBuilder: (_, index) {
-          final m = _members[index];
-          return GestureDetector(
-            onTap: m.isYou ? null : () => _openDirect(m),
-            child: Column(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: m.color.withValues(alpha: 0.35),
-                    shape: BoxShape.circle,
-                    border: m.isYou
-                        ? Border.all(color: NytoColors.ctaSoft, width: 1.5)
-                        : null,
-                  ),
-                  child: Text(
-                    m.initial,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: NytoColors.cream,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 78,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            itemCount: _members.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 14),
+            itemBuilder: (_, index) {
+              final m = _members[index];
+              return GestureDetector(
+                onTap: m.isYou ? null : () => _openDirect(m),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: m.color.withValues(alpha: 0.35),
+                        shape: BoxShape.circle,
+                        border: m.isYou
+                            ? Border.all(color: NytoColors.ctaSoft, width: 1.5)
+                            : null,
+                      ),
+                      child: Text(
+                        m.initial,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: NytoColors.cream,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 6),
+                    Text(
+                      m.name,
+                      style: GoogleFonts.dmSans(
+                        fontSize: 11,
+                        color: m.isYou
+                            ? NytoColors.ctaSoft
+                            : NytoColors.creamMuted,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  m.name,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 11,
-                    color: m.isYou ? NytoColors.ctaSoft : NytoColors.creamMuted,
-                  ),
-                ),
-              ],
+              );
+            },
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+          child: Text(
+            _meetupEnded
+                ? 'Tap a person to request a private chat.'
+                : 'Private chat opens after the night, if they accept.',
+            style: GoogleFonts.dmSans(
+              fontSize: 12,
+              color: NytoColors.cream.withValues(alpha: 0.45),
             ),
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 

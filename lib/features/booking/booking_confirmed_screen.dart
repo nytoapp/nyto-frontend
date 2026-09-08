@@ -4,6 +4,7 @@ import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/booking/booking_detail_screen.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
+import 'package:nyto_app/features/table/table_chat_screen.dart';
 
 /// Brief success splash after payment completes.
 class BookingConfirmedScreen extends StatefulWidget {
@@ -58,6 +59,28 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
     return '₹$head,$tail';
   }
 
+  String get _dayLong {
+    const map = {
+      'Fri': 'Friday',
+      'Sat': 'Saturday',
+      'Sun': 'Sunday',
+      'Wed': 'Wednesday',
+      'Thu': 'Thursday',
+      'Mon': 'Monday',
+      'Tue': 'Tuesday',
+    };
+    return map[widget.table.weekday] ?? widget.table.weekday;
+  }
+
+  void _goBookings() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const HomeScreen(initialTab: 2),
+      ),
+      (_) => false,
+    );
+  }
+
   void _viewBooking() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
@@ -66,6 +89,20 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
           bookingId: widget.bookingId,
           checkInCode: widget.checkInCode,
           status: 'CONFIRMED',
+          exitToBookings: true,
+        ),
+      ),
+    );
+  }
+
+  void _openChat() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TableChatScreen(
+          tableId: widget.table.id,
+          venueName: widget.table.area,
+          dayLabel: _dayLong,
+          timeLabel: widget.table.timeLabel,
         ),
       ),
     );
@@ -142,6 +179,19 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
                   ),
                 ),
               ),
+              const SizedBox(height: 20),
+              FadeTransition(
+                opacity: _fade,
+                child: Text(
+                  'Show your entry code at the door.\nTable mates unlock closer to dinner.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 13,
+                    height: 1.45,
+                    color: NytoColors.creamMuted,
+                  ),
+                ),
+              ),
               const Spacer(flex: 4),
               FadeTransition(
                 opacity: _fade,
@@ -165,20 +215,38 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
+              FadeTransition(
+                opacity: _fade,
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: OutlinedButton(
+                    onPressed: _openChat,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: NytoColors.cream,
+                      side: BorderSide(
+                        color: NytoColors.cream.withValues(alpha: 0.22),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      textStyle: GoogleFonts.dmSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    child: const Text('Open table chat'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
               FadeTransition(
                 opacity: _fade,
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const HomeScreen(),
-                      ),
-                      (_) => false,
-                    );
-                  },
+                  onPressed: _goBookings,
                   child: Text(
-                    'Back to Home',
+                    'My bookings',
                     style: GoogleFonts.dmSans(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,

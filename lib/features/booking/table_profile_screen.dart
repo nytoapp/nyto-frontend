@@ -10,11 +10,9 @@ class TableProfileScreen extends StatefulWidget {
   const TableProfileScreen({
     super.key,
     required this.table,
-    required this.onSaved,
   });
 
   final UpcomingTable table;
-  final VoidCallback onSaved;
 
   @override
   State<TableProfileScreen> createState() => _TableProfileScreenState();
@@ -43,6 +41,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
 
   Future<void> _save() async {
     if (!_canSave || _saving) return;
+    FocusScope.of(context).unfocus();
     setState(() => _saving = true);
     try {
       await authApi.updateMe({
@@ -51,7 +50,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
         if (_singles) 'datingIntent': _intent,
       });
       if (!mounted) return;
-      widget.onSaved();
+      Navigator.of(context).pop(true);
     } catch (_) {
       if (!mounted) return;
       setState(() => _saving = false);
@@ -68,6 +67,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: NytoColors.bg,
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
         child: Column(
           children: [

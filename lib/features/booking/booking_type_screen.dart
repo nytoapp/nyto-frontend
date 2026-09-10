@@ -104,10 +104,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
 
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => TableProfileScreen(
-          table: widget.table,
-          onSaved: () => Navigator.of(context).pop(true),
-        ),
+        builder: (_) => TableProfileScreen(table: widget.table),
       ),
     );
     return saved == true;

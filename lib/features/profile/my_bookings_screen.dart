@@ -273,6 +273,17 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                               color: NytoColors.cream.withValues(alpha: 0.45),
                             ),
                           ),
+                          if (b.isCancelled) ...[
+                            const SizedBox(height: 10),
+                            Text(
+                              b.cancelledByLabel,
+                              style: GoogleFonts.dmSans(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: NytoColors.cream.withValues(alpha: 0.7),
+                              ),
+                            ),
+                          ],
                           if (b.checkInCode != null && b.isConfirmed) ...[
                             const SizedBox(height: 12),
                             Text(

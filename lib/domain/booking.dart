@@ -11,6 +11,7 @@ class BookingSummary {
     this.amountPaid,
     this.paidAt,
     this.checkedInAt,
+    this.cancelReason,
     this.table,
     this.venueName,
     this.city,
@@ -25,6 +26,7 @@ class BookingSummary {
   final int? amountPaid;
   final DateTime? paidAt;
   final DateTime? checkedInAt;
+  final String? cancelReason;
   final UpcomingTable? table;
   final String? venueName;
   final String? city;
@@ -42,11 +44,22 @@ class BookingSummary {
   bool get isCancelled =>
       status == 'CANCELLED' || status == 'NO_SHOW';
 
+  /// Who ended the booking — guest vs NYTO/ops.
+  bool get cancelledByUser {
+    final reason = (cancelReason ?? '').trim().toLowerCase();
+    return reason == 'user' ||
+        reason.contains('guest') ||
+        reason.contains('by you');
+  }
+
+  String get cancelledByLabel =>
+      cancelledByUser ? 'Cancelled by you' : 'Cancelled by NYTO';
+
   String get statusLabel => switch (status) {
         'PENDING_PAYMENT' => 'Awaiting payment',
         'CONFIRMED' => 'Confirmed',
         'ATTENDED' => 'Checked in',
-        'CANCELLED' => 'Cancelled',
+        'CANCELLED' => cancelledByLabel,
         'NO_SHOW' => 'No show',
         _ => status,
       };
@@ -116,6 +129,7 @@ class BookingSummary {
       amountPaid: json['amountPaid'] as int?,
       paidAt: paidAt,
       checkedInAt: checkedInAt,
+      cancelReason: json['cancelReason'] as String?,
       table: table,
       venueName: venueName ?? table?.area,
       city: city ?? table?.city,

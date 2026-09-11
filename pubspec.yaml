@@ -92,6 +92,7 @@ flutter:
     - assets/brand/facebook_logo.svg
     - assets/brand/apple_logo.svg
     - assets/video/
+    - assets/menu/videos/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

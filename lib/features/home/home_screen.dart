@@ -21,19 +21,22 @@ import 'package:nyto_app/domain/table.dart';
 /// Soft client lanes until backend visibility windows ship (Phase B).
 class _HomeLanes {
   const _HomeLanes({
-    this.invitation,
+    this.invitations = const [],
     this.open = const [],
     this.instant = const [],
     this.comingUp = const [],
   });
 
-  final UpcomingTable? invitation;
+  final List<UpcomingTable> invitations;
   final List<UpcomingTable> open;
   final List<UpcomingTable> instant;
   final List<UpcomingTable> comingUp;
 
   bool get isEmpty =>
-      invitation == null && open.isEmpty && instant.isEmpty && comingUp.isEmpty;
+      invitations.isEmpty &&
+      open.isEmpty &&
+      instant.isEmpty &&
+      comingUp.isEmpty;
 
   /// Server `instant` flag + open seats on event day (Sat/Sun).
   static _HomeLanes from(List<UpcomingTable> tables, {DateTime? now}) {
@@ -75,22 +78,43 @@ class _HomeLanes {
       }
     }
 
-    UpcomingTable? invitation;
-    if (open.isNotEmpty) {
-      invitation = open.removeAt(0);
-    } else if (instant.isNotEmpty) {
-      invitation = instant.removeAt(0);
-    } else if (coming.isNotEmpty) {
-      invitation = coming.removeAt(0);
+    final invitations = <UpcomingTable>[];
+    void takeInvites(List<UpcomingTable> source, int max) {
+      while (invitations.length < max && source.isNotEmpty) {
+        invitations.add(source.removeAt(0));
+      }
     }
 
+    takeInvites(open, 4);
+    if (invitations.length < 4) takeInvites(instant, 4);
+    if (invitations.length < 4) takeInvites(coming, 4);
+
     return _HomeLanes(
-      invitation: invitation,
+      invitations: invitations,
       open: open,
       instant: instant,
       comingUp: coming,
     );
   }
+}
+
+String _opensInLabel(DateTime? opensAt, [DateTime? now]) {
+  final n = now ?? DateTime.now();
+  if (opensAt == null) return 'Opens soon';
+  if (!opensAt.isAfter(n)) return 'Open now';
+  final d = opensAt.difference(n);
+  if (d.inDays >= 1) {
+    final hours = d.inHours % 24;
+    return hours > 0 ? 'Opens in ${d.inDays}d ${hours}h' : 'Opens in ${d.inDays}d';
+  }
+  if (d.inHours >= 1) {
+    final mins = d.inMinutes % 60;
+    return mins > 0
+        ? 'Opens in ${d.inHours}h ${mins}m'
+        : 'Opens in ${d.inHours}h';
+  }
+  final mins = d.inMinutes.clamp(1, 59);
+  return 'Opens in ${mins}m';
 }
 
 class HomeScreen extends StatefulWidget {
@@ -247,6 +271,16 @@ class _HomeScreenState extends State<HomeScreen> {
               return w.startsWith('sat') || w.startsWith('sun');
             })
             .toList();
+      } else if (_filters.dayLabel == 'Next 2-3 days') {
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        parsed = parsed.where((t) {
+          final start = t.startsAt;
+          if (start == null) return false;
+          final day = DateTime(start.year, start.month, start.day);
+          final diff = day.difference(today).inDays;
+          return diff >= 1 && diff <= 3;
+        }).toList();
       }
       DateTime? nextOpens;
       final rawNext = json['nextBookingOpensAt'];
@@ -559,23 +593,16 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                             physics: const AlwaysScrollableScrollPhysics(),
                             padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
                             children: [
-                              if (lanes.invitation != null) ...[
+                              if (lanes.invitations.isNotEmpty) ...[
                                 const _SectionLabel(
                                   eyebrow: 'THE INVITE',
                                   title: 'Tonight’s invitation',
+                                  subtitle: 'Swipe for more tables.',
                                 ),
                                 const SizedBox(height: 10),
-                                SizedBox(
-                                  height: 300,
-                                  child: Opacity(
-                                    opacity:
-                                        lanes.invitation!.bookable ? 1 : 0.55,
-                                    child: _InvitationCard(
-                                      table: lanes.invitation!,
-                                      onTap: () =>
-                                          widget.onOpen(lanes.invitation!),
-                                    ),
-                                  ),
+                                _InvitationCarousel(
+                                  tables: lanes.invitations,
+                                  onOpen: widget.onOpen,
                                 ),
                                 const SizedBox(height: 26),
                               ],
@@ -638,39 +665,27 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
                                 const SizedBox(height: 22),
                               ],
                               if (lanes.comingUp.isNotEmpty) ...[
-                                Opacity(
-                                  opacity: 0.72,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      const _SectionLabel(
-                                        eyebrow: 'LATER',
-                                        title: 'Coming up',
-                                        subtitle:
-                                            'Opens when the next drop hits.',
-                                      ),
-                                      const SizedBox(height: 10),
-                                      SizedBox(
-                                        height: 128,
-                                        child: ListView.separated(
-                                          scrollDirection: Axis.horizontal,
-                                          itemCount: lanes.comingUp.length,
-                                          separatorBuilder: (_, __) =>
-                                              const SizedBox(width: 10),
-                                          itemBuilder: (context, i) {
-                                            final t = lanes.comingUp[i];
-                                            return Opacity(
-                                              opacity: t.bookable ? 0.72 : 0.45,
-                                              child: _ComingUpRailCard(
-                                                table: t,
-                                                onTap: () => widget.onOpen(t),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ],
+                                const _SectionLabel(
+                                  eyebrow: 'LATER',
+                                  title: 'Coming up',
+                                  subtitle:
+                                      'Each card shows when booking opens.',
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  height: 156,
+                                  child: ListView.separated(
+                                    scrollDirection: Axis.horizontal,
+                                    itemCount: lanes.comingUp.length,
+                                    separatorBuilder: (_, __) =>
+                                        const SizedBox(width: 10),
+                                    itemBuilder: (context, i) {
+                                      final t = lanes.comingUp[i];
+                                      return _ComingUpRailCard(
+                                        table: t,
+                                        onTap: () => widget.onOpen(t),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
@@ -939,6 +954,88 @@ class _SeatMixBadge extends StatelessWidget {
           color: NytoColors.cream,
         ),
       ),
+    );
+  }
+}
+
+class _InvitationCarousel extends StatefulWidget {
+  const _InvitationCarousel({
+    required this.tables,
+    required this.onOpen,
+  });
+
+  final List<UpcomingTable> tables;
+  final ValueChanged<UpcomingTable> onOpen;
+
+  @override
+  State<_InvitationCarousel> createState() => _InvitationCarouselState();
+}
+
+class _InvitationCarouselState extends State<_InvitationCarousel> {
+  late final PageController _page;
+  int _pageIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _page = PageController(viewportFraction: 0.92);
+  }
+
+  @override
+  void dispose() {
+    _page.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tables = widget.tables;
+    return Column(
+      children: [
+        SizedBox(
+          height: 300,
+          child: PageView.builder(
+            controller: _page,
+            itemCount: tables.length,
+            onPageChanged: (i) => setState(() => _pageIndex = i),
+            itemBuilder: (context, i) {
+              final t = tables[i];
+              return Padding(
+                padding: EdgeInsets.only(right: i == tables.length - 1 ? 0 : 10),
+                child: Opacity(
+                  opacity: t.bookable ? 1 : 0.72,
+                  child: _InvitationCard(
+                    table: t,
+                    onTap: () => widget.onOpen(t),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        if (tables.length > 1) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < tables.length; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: i == _pageIndex ? 18 : 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(99),
+                    color: i == _pageIndex
+                        ? NytoColors.cta
+                        : NytoColors.cream.withValues(alpha: 0.28),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1364,26 +1461,57 @@ class _InstantRailCard extends StatelessWidget {
   }
 }
 
-class _ComingUpRailCard extends StatelessWidget {
+class _ComingUpRailCard extends StatefulWidget {
   const _ComingUpRailCard({required this.table, required this.onTap});
 
   final UpcomingTable table;
   final VoidCallback onTap;
 
+  @override
+  State<_ComingUpRailCard> createState() => _ComingUpRailCardState();
+}
+
+class _ComingUpRailCardState extends State<_ComingUpRailCard> {
+  Timer? _tick;
+  String _opensLabel = '';
+
   String get _dayShort {
-    final w = table.weekday;
+    final w = widget.table.weekday;
     if (w.length <= 3) return w.toUpperCase();
     return w.substring(0, 3).toUpperCase();
   }
 
   @override
+  void initState() {
+    super.initState();
+    _refreshLabel();
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (!mounted) return;
+      _refreshLabel();
+    });
+  }
+
+  void _refreshLabel() {
+    setState(() {
+      _opensLabel = _opensInLabel(widget.table.bookingOpensAt);
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final table = widget.table;
     return SizedBox(
-      width: 148,
+      width: 156,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
           borderRadius: BorderRadius.circular(20),
           child: NytoGlass.panel(
             borderRadius: 20,
@@ -1397,7 +1525,7 @@ class _ComingUpRailCard extends StatelessWidget {
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 1.1,
-                    color: NytoColors.cream.withValues(alpha: 0.4),
+                    color: NytoColors.ctaSoft,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -1406,10 +1534,10 @@ class _ComingUpRailCard extends StatelessWidget {
                   style: GoogleFonts.fraunces(
                     fontSize: 20,
                     height: 1.05,
-                    color: NytoColors.cream.withValues(alpha: 0.85),
+                    color: NytoColors.cream,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(height: 6),
                 Text(
                   '${table.mealLabel} · ${table.timeLabel}',
                   maxLines: 1,
@@ -1417,17 +1545,28 @@ class _ComingUpRailCard extends StatelessWidget {
                   style: GoogleFonts.dmSans(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: NytoColors.cream.withValues(alpha: 0.7),
+                    color: NytoColors.cream.withValues(alpha: 0.78),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   table.area,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.dmSans(
                     fontSize: 11,
-                    color: NytoColors.cream.withValues(alpha: 0.4),
+                    color: NytoColors.cream.withValues(alpha: 0.45),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _opensLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.dmSans(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: NytoColors.ctaSoft,
                   ),
                 ),
               ],

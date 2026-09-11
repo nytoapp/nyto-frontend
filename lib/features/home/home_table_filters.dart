@@ -181,7 +181,9 @@ class HomeTableFiltersBar extends StatelessWidget {
   Future<void> _pickDay(BuildContext context) async {
     final selectedKey = switch (filters.dayLabel) {
       'Today' => 'today',
+      'Next 2-3 days' => 'next',
       'This weekend' => 'weekend',
+      'All days' => 'any',
       _ => 'any',
     };
     final choice = await showModalBottomSheet<String>(
@@ -193,8 +195,9 @@ class HomeTableFiltersBar extends StatelessWidget {
       builder: (ctx) => _FilterSheet(
         title: 'Day',
         options: const [
-          ('Any day', 'any'),
+          ('All days', 'any'),
           ('Today', 'today'),
+          ('Next 2-3 days', 'next'),
           ('This weekend', 'weekend'),
         ],
         selected: selectedKey,
@@ -208,11 +211,15 @@ class HomeTableFiltersBar extends StatelessWidget {
       onChanged(filters.copyWith(day: iso, dayLabel: 'Today'));
       return;
     }
+    if (choice == 'next') {
+      onChanged(filters.copyWith(clearDay: true, dayLabel: 'Next 2-3 days'));
+      return;
+    }
     if (choice == 'weekend') {
       onChanged(filters.copyWith(clearDay: true, dayLabel: 'This weekend'));
       return;
     }
-    onChanged(filters.copyWith(clearDay: true, dayLabel: 'Any day'));
+    onChanged(filters.copyWith(clearDay: true, dayLabel: 'All days'));
   }
 
   Future<void> _pickPayment(BuildContext context) async {
@@ -271,7 +278,10 @@ class HomeTableFiltersBar extends StatelessWidget {
           const SizedBox(width: 8),
           _FilterChip(
             label: filters.dayLabel,
-            active: filters.day != null || filters.dayLabel == 'This weekend',
+            active: filters.day != null ||
+                filters.dayLabel == 'Next 2-3 days' ||
+                filters.dayLabel == 'This weekend' ||
+                filters.dayLabel == 'All days',
             onTap: () => _pickDay(context),
           ),
           const SizedBox(width: 8),

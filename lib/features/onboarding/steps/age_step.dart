@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/onboarding/onboarding_data.dart';
+import 'package:nyto_app/features/onboarding/widgets/age_reveal.dart';
 import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
 class AgeStep extends StatefulWidget {
@@ -66,7 +67,6 @@ class _AgeStepState extends State<AgeStep> {
       firstDate: DateTime(now.year - 80),
       lastDate: DateTime(now.year - 18, now.month, now.day),
       helpText: 'Date of birth',
-      // Dim the onboarding screen so calendar text doesn't clash.
       barrierColor: const Color(0xE605070A),
       builder: (context, child) {
         return Theme(
@@ -123,6 +123,10 @@ class _AgeStepState extends State<AgeStep> {
 
   @override
   Widget build(BuildContext context) {
+    final age = _age;
+    final showReveal = _ok && age != null;
+    final selected = _dob != null;
+
     return OnboardingScaffold(
       step: 6,
       totalSteps: OnboardingData.totalSteps,
@@ -131,64 +135,101 @@ class _AgeStepState extends State<AgeStep> {
         enabled: _ok,
         onPressed: _ok ? _go : null,
       ),
-      child: ListView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const OnboardingTitle(
             'What’s your date of birth?',
             subtitle: 'We’ll seat you with people around your age.',
           ),
-          const SizedBox(height: 36),
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _pick,
-              borderRadius: BorderRadius.circular(16),
-              child: Ink(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 18,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: NytoColors.cream.withValues(alpha: 0.05),
-                  border: Border.all(
-                    color: NytoColors.cream.withValues(alpha: 0.12),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Date of birth',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: NytoColors.cream.withValues(alpha: 0.4),
+          const SizedBox(height: 22),
+          // DOB field — quiet; selected state leads into the reveal below.
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 280),
+            curve: const Cubic(0.16, 1, 0.3, 1),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  NytoColors.cream.withValues(alpha: selected ? 0.065 : 0.04),
+                  NytoColors.cta.withValues(alpha: selected ? 0.05 : 0.015),
+                ],
+              ),
+              border: Border.all(
+                color: selected
+                    ? NytoColors.cta.withValues(alpha: 0.22)
+                    : NytoColors.cream.withValues(alpha: 0.11),
+              ),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _pick,
+                borderRadius: BorderRadius.circular(18),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 15, 14, 15),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Date of birth',
+                              style: GoogleFonts.dmSans(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.35,
+                                color: selected
+                                    ? NytoColors.ctaSoft.withValues(alpha: 0.8)
+                                    : NytoColors.cream.withValues(alpha: 0.38),
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _display,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: _dob == null
-                                  ? NytoColors.cream.withValues(alpha: 0.35)
-                                  : NytoColors.cream,
+                            const SizedBox(height: 6),
+                            AnimatedDefaultTextStyle(
+                              duration: const Duration(milliseconds: 220),
+                              style: GoogleFonts.dmSans(
+                                fontSize: 17.5,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: selected ? 0.35 : 0,
+                                height: 1.2,
+                                color: selected
+                                    ? NytoColors.cream
+                                    : NytoColors.cream.withValues(alpha: 0.35),
+                              ),
+                              child: Text(_display),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(
-                      Icons.calendar_today_rounded,
-                      size: 20,
-                      color: NytoColors.ctaSoft.withValues(alpha: 0.9),
-                    ),
-                  ],
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 240),
+                        width: 38,
+                        height: 38,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(11),
+                          color: NytoColors.cta.withValues(
+                            alpha: selected ? 0.12 : 0.07,
+                          ),
+                          border: Border.all(
+                            color: NytoColors.cta.withValues(
+                              alpha: selected ? 0.24 : 0.12,
+                            ),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.calendar_today_rounded,
+                          size: 16,
+                          color: NytoColors.ctaSoft.withValues(
+                            alpha: selected ? 1 : 0.8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -203,6 +244,23 @@ class _AgeStepState extends State<AgeStep> {
               ),
             ),
           ],
+          // Fill the middle: age reveal is composed into the remaining space.
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 420),
+              switchInCurve: const Cubic(0.22, 1, 0.36, 1),
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: showReveal
+                  ? KeyedSubtree(
+                      key: ValueKey<int>(age),
+                      child: AgeReveal(age: age),
+                    )
+                  : const SizedBox.expand(key: ValueKey('empty')),
+            ),
+          ),
         ],
       ),
     );

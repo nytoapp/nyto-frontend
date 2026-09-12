@@ -24,6 +24,7 @@ class AuthStep extends StatefulWidget {
 
 class _AuthStepState extends State<AuthStep> {
   late final AuthController _auth;
+  bool _didAdvance = false;
 
   bool get _isIos => defaultTargetPlatform == TargetPlatform.iOS;
 
@@ -51,7 +52,10 @@ class _AuthStepState extends State<AuthStep> {
     setState(() {});
 
     final user = _auth.user;
-    if (user != null && _auth.state.stage == AuthStage.otpVerify) {
+    if (user != null &&
+        _auth.state.stage == AuthStage.otpVerify &&
+        !_didAdvance) {
+      _didAdvance = true;
       _commit(method: 'phone');
       widget.onContinue();
     }
@@ -87,6 +91,8 @@ class _AuthStepState extends State<AuthStep> {
   }
 
   void _continueFromConfirm() {
+    if (_didAdvance) return;
+    _didAdvance = true;
     final provider = _auth.state.confirmProvider?.toLowerCase() ?? 'google';
     _commit(method: provider);
     widget.onContinue();
@@ -129,7 +135,7 @@ class _AuthStepState extends State<AuthStep> {
         if (!didPop) _auth.goBack();
       },
       child: OnboardingScaffold(
-        step: 4,
+        step: 3,
         totalSteps: OnboardingData.totalSteps,
         resizeForKeyboard: true,
         footer: _buildFooter(),

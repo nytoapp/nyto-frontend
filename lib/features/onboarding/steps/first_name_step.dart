@@ -11,10 +11,13 @@ class FirstNameStep extends StatefulWidget {
     super.key,
     required this.data,
     required this.onContinue,
+    this.allowBack = true,
   });
 
   final OnboardingData data;
   final VoidCallback onContinue;
+  /// False at the post-auth root — Back must not invent an auth history.
+  final bool allowBack;
 
   @override
   State<FirstNameStep> createState() => _FirstNameStepState();
@@ -58,19 +61,34 @@ class _FirstNameStepState extends State<FirstNameStep> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _saving = false;
         _error = 'Could not save your name. Try again.';
       });
+    } finally {
+      // Route stays under the next step — must unlock so Back → this
+      // screen is usable again (not stuck on "Saving…").
+      if (mounted) setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // If user popped back while a prior save left us locked, recover.
+    final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
+    if (isCurrent && _saving) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if ((ModalRoute.of(context)?.isCurrent ?? false) && _saving) {
+          setState(() => _saving = false);
+        }
+      });
+    }
+
     // resizeForKeyboard lifts the footer with the inset so Continue stays
     // visible above the keyboard — no dismiss-to-tap required.
     return OnboardingScaffold(
       step: 5,
       totalSteps: OnboardingData.totalSteps,
+      showBack: widget.allowBack,
       resizeForKeyboard: true,
       footer: NytoPrimaryButton(
         label: _saving ? 'Saving…' : 'Continue',

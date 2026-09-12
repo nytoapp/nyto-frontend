@@ -148,7 +148,7 @@ class _MyBookingsStripState extends State<MyBookingsStrip> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${table?.mealLabel ?? 'Dinner'} · ${table?.timeLabel ?? ''} · ${b.area ?? b.venueName ?? 'Venue'}',
+                            '${table?.mealLabel ?? 'Dinner'} · ${table?.timeLabel ?? ''} · ${b.venueName ?? b.area ?? 'Venue'}',
                             style: GoogleFonts.dmSans(
                               fontSize: 13,
                               color: NytoColors.cream.withValues(alpha: 0.55),

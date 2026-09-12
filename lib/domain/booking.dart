@@ -76,9 +76,15 @@ class BookingSummary {
       if (venue is Map<String, dynamic>) {
         venueName = venue['name'] as String?;
         city = venue['city'] as String?;
-        final address = venue['address'] as String? ?? '';
-        area = address.split(',').first.trim();
-        if (area.isEmpty) area = city;
+        // Prefer explicit neighbourhood — never the street line from address.
+        final venueArea = (venue['area'] as String?)?.trim();
+        if (venueArea != null && venueArea.isNotEmpty) {
+          area = venueArea;
+        } else {
+          final address = venue['address'] as String? ?? '';
+          area = address.split(',').first.trim();
+          if (area.isEmpty) area = city;
+        }
       }
 
       // Flatten nested venue fields into UpcomingTable shape when possible.
@@ -131,7 +137,7 @@ class BookingSummary {
       checkedInAt: checkedInAt,
       cancelReason: json['cancelReason'] as String?,
       table: table,
-      venueName: venueName ?? table?.area,
+      venueName: venueName ?? table?.venueName ?? table?.area,
       city: city ?? table?.city,
       area: area ?? table?.area,
     );

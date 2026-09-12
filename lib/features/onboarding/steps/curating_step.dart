@@ -33,6 +33,7 @@ class _CuratingStepState extends State<CuratingStep>
   int _doneThrough = -1;
   Timer? _timer;
   bool _finished = false;
+  bool _advanced = false;
 
   static const _lines = [
     'Reading your goals',
@@ -90,12 +91,15 @@ class _CuratingStepState extends State<CuratingStep>
           _finished = true;
         });
         HapticFeedback.mediumImpact();
-        Future<void>.delayed(const Duration(milliseconds: 480), () {
-          if (!mounted) return;
-          widget.onContinue();
-        });
+        Future<void>.delayed(const Duration(milliseconds: 480), _advance);
       }
     });
+  }
+
+  void _advance() {
+    if (!mounted || _advanced) return;
+    _advanced = true;
+    widget.onContinue();
   }
 
   @override
@@ -114,10 +118,13 @@ class _CuratingStepState extends State<CuratingStep>
       curve: const Cubic(0.16, 1, 0.3, 1),
     );
 
-    return OnboardingScaffold(
-      step: 9,
-      totalSteps: OnboardingData.totalSteps,
-      child: AnimatedBuilder(
+    return PopScope(
+      canPop: false,
+      child: OnboardingScaffold(
+        step: 9,
+        totalSteps: OnboardingData.totalSteps,
+        showBack: false,
+        child: AnimatedBuilder(
         animation: Listenable.merge([_breath, _ring]),
         builder: (context, _) {
           final breath = _breath.value;
@@ -236,6 +243,7 @@ class _CuratingStepState extends State<CuratingStep>
             ],
           );
         },
+      ),
       ),
     );
   }

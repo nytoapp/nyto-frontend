@@ -11,10 +11,14 @@ class GenderStep extends StatefulWidget {
     super.key,
     required this.data,
     required this.onSelected,
+    this.allowBack = true,
   });
 
   final OnboardingData data;
   final VoidCallback onSelected;
+
+  /// False when this is the post-auth stack root (no auth history behind it).
+  final bool allowBack;
 
   @override
   State<GenderStep> createState() => _GenderStepState();
@@ -24,22 +28,31 @@ class _GenderStepState extends State<GenderStep> {
   bool _navigating = false;
 
   Future<void> _pick(String id) async {
+    // One in-flight transition only — blocks duplicate pushes / auth loops.
     if (_navigating) return;
+    if (!(ModalRoute.of(context)?.isCurrent ?? true)) return;
+
     HapticFeedback.selectionClick();
     setState(() {
       widget.data.gender = id;
       _navigating = true;
     });
-    await Future<void>.delayed(const Duration(milliseconds: 380));
+
+    await Future<void>.delayed(const Duration(milliseconds: 220));
     if (!mounted) return;
+
+    // Still the top route? Then advance exactly once.
+    if (!(ModalRoute.of(context)?.isCurrent ?? false)) {
+      setState(() => _navigating = false);
+      return;
+    }
+
     widget.onSelected();
-    // Unlock so back-navigation can re-select / change answer.
-    if (mounted) setState(() => _navigating = false);
+    // Stay locked until this route is covered or becomes current again after pop.
   }
 
   @override
   Widget build(BuildContext context) {
-    // If this route is on top again (user popped back), never stay locked.
     final isCurrent = ModalRoute.of(context)?.isCurrent ?? true;
     if (isCurrent && _navigating) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -51,8 +64,9 @@ class _GenderStepState extends State<GenderStep> {
     }
 
     return OnboardingScaffold(
-      step: 3,
+      step: 4,
       totalSteps: OnboardingData.totalSteps,
+      showBack: widget.allowBack,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

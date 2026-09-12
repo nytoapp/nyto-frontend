@@ -267,7 +267,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${b.area ?? b.venueName ?? 'Venue'} · ${b.city ?? ''}',
+                            '${b.venueName ?? b.area ?? 'Venue'} · ${b.city ?? ''}',
                             style: GoogleFonts.dmSans(
                               fontSize: 13,
                               color: NytoColors.cream.withValues(alpha: 0.45),

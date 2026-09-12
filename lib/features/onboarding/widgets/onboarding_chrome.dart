@@ -17,6 +17,7 @@ class OnboardingScaffold extends StatelessWidget {
     this.footer,
     this.showProgress = true,
     this.resizeForKeyboard = false,
+    this.showBack = true,
   });
 
   final int step;
@@ -26,6 +27,8 @@ class OnboardingScaffold extends StatelessWidget {
   final Widget? footer;
   final bool showProgress;
   final bool resizeForKeyboard;
+  /// When false, the leading control is an invisible spacer (auth boundary).
+  final bool showBack;
 
   @override
   Widget build(BuildContext context) {
@@ -50,11 +53,18 @@ class OnboardingScaffold extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(8, 4, 20, 0),
                     child: Row(
                       children: [
-                        IconButton(
-                          onPressed: onBack ?? () => Navigator.of(context).maybePop(),
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
-                          color: NytoColors.cream.withValues(alpha: 0.9),
-                        ),
+                        if (showBack)
+                          IconButton(
+                            onPressed:
+                                onBack ?? () => Navigator.of(context).maybePop(),
+                            icon: const Icon(
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 18,
+                            ),
+                            color: NytoColors.cream.withValues(alpha: 0.9),
+                          )
+                        else
+                          const SizedBox(width: 48, height: 48),
                         Expanded(
                           child: showProgress
                               ? OnboardingProgressBar(
@@ -86,14 +96,13 @@ class OnboardingScaffold extends StatelessWidget {
                   ),
                   if (footer != null)
                     Padding(
-                      // Keep a little air above the home indicator / keyboard
-                      // edge without pushing the button off-screen.
                       padding: EdgeInsets.fromLTRB(
                         24,
                         8,
                         24,
                         resizeForKeyboard
-                            ? 12 + MediaQuery.paddingOf(context).bottom.clamp(0, 12)
+                            ? 12 +
+                                MediaQuery.paddingOf(context).bottom.clamp(0, 12)
                             : 20,
                       ),
                       child: footer!,

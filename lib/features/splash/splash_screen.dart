@@ -8,6 +8,9 @@ import 'package:nyto_app/core/media/welcome_video_clip.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
+import 'package:nyto_app/features/onboarding/onboarding_data.dart';
+import 'package:nyto_app/features/onboarding/onboarding_flow.dart';
+import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:video_player/video_player.dart';
 
 /// Exactly 1s full-bleed NYTO (same art as native windowBackground) → instant swap.
@@ -112,11 +115,33 @@ class _SplashScreenState extends State<SplashScreen> {
     final hasSession = _sessionResult ?? false;
     if (!mounted || _navigated) return;
 
-    if (hasSession) {
-      _goHome();
-    } else {
+    if (!hasSession) {
       _goWelcome();
+      return;
     }
+
+    // Session exists: Home if onboarding done; else resume post-auth steps.
+    // Never reopen Phone/OTP — those belong only to the pre-auth flow.
+    try {
+      final user = await NytoSession.currentUser();
+      if (!mounted || _navigated) return;
+      if (user != null && onboardingNeedsCompletion(user)) {
+        _goPostAuth(onboardingDataFromUser(user));
+        return;
+      }
+    } catch (_) {}
+    if (!mounted || _navigated) return;
+    _goHome();
+  }
+
+  void _goPostAuth(OnboardingData data) {
+    if (_navigated || !mounted) return;
+    _navigated = true;
+    _disposeUnusedPreload();
+
+    Navigator.of(context).pushReplacement(
+      onboardingRoute(PostAuthOnboardingFlow(data: data)),
+    );
   }
 
   void _goHome() {

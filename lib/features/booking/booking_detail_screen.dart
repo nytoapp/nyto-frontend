@@ -8,6 +8,7 @@ import 'package:nyto_app/domain/booking.dart';
 import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/table/table_chat_screen.dart';
+import 'package:nyto_app/features/table/table_menu_gallery.dart';
 
 /// Post-payment booking detail — venue + entry code + chat.
 class BookingDetailScreen extends StatefulWidget {
@@ -113,7 +114,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
       MaterialPageRoute<void>(
         builder: (_) => TableChatScreen(
           tableId: _table.id,
-          venueName: _table.area,
+          venueName: _table.venueName ?? _table.area,
           dayLabel: _dayLong,
           timeLabel: _table.timeLabel,
         ),
@@ -206,6 +207,11 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
+                  TableMenuGallery(
+                    tableId: _table.id,
+                    inclusions: _table.inclusions,
+                  ),
+                  const SizedBox(height: 16),
                   NytoGlass.panel(
                     borderRadius: 18,
                     padding: const EdgeInsets.all(20),
@@ -216,7 +222,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                           children: [
                             Expanded(
                               child: Text(
-                                _table.area,
+                                _table.venueName ?? _table.area,
                                 style: GoogleFonts.fraunces(
                                   fontSize: 24,
                                   color: NytoColors.cream,
@@ -254,7 +260,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          _table.city,
+                          _table.venueName != null &&
+                                  _table.venueName!.trim().isNotEmpty
+                              ? '${_table.area} · ${_table.city}'
+                              : _table.city,
                           style: GoogleFonts.dmSans(
                             fontSize: 14,
                             color: NytoColors.creamMuted,

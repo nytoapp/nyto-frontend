@@ -100,7 +100,7 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
       MaterialPageRoute<void>(
         builder: (_) => TableChatScreen(
           tableId: widget.table.id,
-          venueName: widget.table.area,
+          venueName: widget.table.venueName ?? widget.table.area,
           dayLabel: _dayLong,
           timeLabel: widget.table.timeLabel,
         ),
@@ -160,7 +160,7 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
               FadeTransition(
                 opacity: _fade,
                 child: Text(
-                  '${_formatInr(widget.amountPaid)} paid · ${widget.table.area}',
+                  '${_formatInr(widget.amountPaid)} paid · ${widget.table.venueName ?? widget.table.area}',
                   style: GoogleFonts.dmSans(
                     fontSize: 15,
                     color: NytoColors.creamMuted,

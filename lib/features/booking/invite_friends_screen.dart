@@ -47,7 +47,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
       'https://nyto.app/join/${table.id}?src=invite';
 
   String get _shareText =>
-      'Join me at NYTO — ${table.weekday} ${table.dateLabel}, '
+      'Join me at NYTO. ${table.weekday} ${table.dateLabel}, '
       '${table.timeLabel}, ${table.area}. '
       'Same table, you pay your own seat: $_inviteUrl';
 
@@ -70,13 +70,13 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
       if (!mounted) return;
       _setChoice(
         InviteHandlingChoice.shared,
-        hint: 'Invite shared — you can continue to payment.',
+        hint: 'Invite shared. You can continue to payment.',
       );
     } catch (_) {
       if (!mounted) return;
       _setChoice(
         InviteHandlingChoice.shared,
-        hint: 'Share sheet opened — you can continue to payment.',
+        hint: 'Share sheet opened. You can continue to payment.',
       );
     } finally {
       if (mounted) setState(() => _sharing = false);
@@ -191,7 +191,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'Send a link. They join the same table and pay for their own seat — you only pay yours.',
+                        'Send a link. They join the same table and pay for their own seat. You only pay yours.',
                         style: GoogleFonts.dmSans(
                           fontSize: 14,
                           height: 1.45,
@@ -209,7 +209,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                       ),
                       const SizedBox(height: 28),
                       Text(
-                        'Choose how you’d like to handle invites to continue.',
+                        'Share, copy a link, or skip. Then continue to payment.',
                         style: GoogleFonts.dmSans(
                           fontSize: 13,
                           height: 1.4,

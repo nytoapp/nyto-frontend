@@ -24,6 +24,7 @@ class TableDetailScreen extends StatefulWidget {
 class _TableDetailScreenState extends State<TableDetailScreen> {
   late UpcomingTable _table;
   bool _loading = true;
+  bool _booking = false;
 
   @override
   void initState() {
@@ -50,24 +51,62 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
   }
 
   Future<void> _book() async {
-    if (!_table.bookable) {
+    if (_booking) return;
+    setState(() => _booking = true);
+    try {
+      if (!_table.bookable) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => BookingOpensScreen(table: _table),
+          ),
+        );
+        return;
+      }
       await Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => BookingOpensScreen(table: _table),
-        ),
+        onboardingRoute(BookingTypeScreen(table: _table)),
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _booking = false);
     }
-    await Navigator.of(context).push(
-      onboardingRoute(BookingTypeScreen(table: _table)),
-    );
+  }
+
+  /// Meal / offer chip — prefer inclusion copy over generic payment label.
+  String _offerChip(UpcomingTable t) {
+    for (final item in t.inclusions) {
+      final lower = item.toLowerCase();
+      if (lower.contains('course') || lower.contains('dinner')) {
+        return item;
+      }
+    }
+    if (t.paymentType == TablePaymentType.allInclusive) {
+      return '3-course dinner';
+    }
+    return t.paymentTypeLabel;
+  }
+
+  /// Customer-facing inclusions only — drop ops jargon, keep it short.
+  List<String> _customerInclusions(UpcomingTable t) {
+    final filtered = <String>[];
+    for (final raw in t.inclusions) {
+      final item = raw.trim();
+      if (item.isEmpty) continue;
+      final lower = item.toLowerCase();
+      if (lower.contains('host facilitation') ||
+          lower.contains('facilitation') ||
+          lower == 'host') {
+        continue;
+      }
+      filtered.add(item);
+      if (filtered.length >= 2) break;
+    }
+    return filtered;
   }
 
   @override
   Widget build(BuildContext context) {
     final t = _table;
+    final inclusions = _customerInclusions(t);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    // Fade + padding + button + safe area — keeps last cards readable.
     final ctaReserve = 28.0 + 56.0 + 16.0 + bottomInset;
 
     return Scaffold(
@@ -93,13 +132,6 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                           color: NytoColors.cream.withValues(alpha: 0.8),
                         ),
                       ),
-                      Text(
-                        'Table detail',
-                        style: GoogleFonts.dmSans(
-                          fontSize: 14,
-                          color: NytoColors.cream.withValues(alpha: 0.55),
-                        ),
-                      ),
                       const Spacer(),
                       if (_loading)
                         const SizedBox(
@@ -118,11 +150,14 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                 child: ListView(
                   padding: EdgeInsets.fromLTRB(22, 8, 22, ctaReserve),
                   children: [
+                    // ── Hero media (unboxed) ─────────────────────────────
                     TableMenuGallery(
                       tableId: t.id,
                       inclusions: t.inclusions,
                     ),
-                    const SizedBox(height: 18),
+
+                    // ── Identity ─────────────────────────────────────────
+                    const SizedBox(height: 24),
                     Text(
                       t.venueName ?? t.area,
                       style: GoogleFonts.dmSerifDisplay(
@@ -137,7 +172,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                         Icon(
                           Icons.location_on_outlined,
                           size: 16,
-                          color: NytoColors.ctaSoft,
+                          color: NytoColors.ctaSoft.withValues(alpha: 0.9),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -151,164 +186,97 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 18),
+
+                    // ── When / what (date → time → cadence → experience)
+                    const SizedBox(height: 16),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: [
-                        _Pill(label: t.tableTypeLabel),
-                        _Pill(label: '${t.weekday} · ${t.dateLabel}'),
-                        _Pill(label: t.timeLabel),
-                        _Pill(label: t.paymentTypeLabel),
+                        _MetaChip(label: '${t.weekday} · ${t.dateLabel}'),
+                        _MetaChip(label: t.timeLabel),
+                        _MetaChip(label: t.tableTypeLabel),
+                        _MetaChip(label: _offerChip(t)),
                       ],
                     ),
-                    const SizedBox(height: 18),
-                    NytoGlass.panel(
-                      borderRadius: 20,
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '₹${t.priceInr} / seat',
-                            style: GoogleFonts.dmSerifDisplay(
-                              fontSize: 28,
-                              color: NytoColors.cream,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            t.paymentType == TablePaymentType.payOwnBill
-                                ? 'Connection fee · Food paid at the venue'
-                                : 'Includes food, drinks & the table',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              height: 1.35,
-                              color: NytoColors.cream.withValues(alpha: 0.55),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            t.seatMixLabel,
-                            style: GoogleFonts.dmSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: NytoColors.ctaSoft,
-                            ),
-                          ),
-                        ],
-                      ),
+
+                    // ── Price (only LEVEL-2 transactional surface) ───────
+                    const SizedBox(height: 24),
+                    _PriceSurface(
+                      priceLabel: '₹${t.priceInr} / seat',
+                      support: t.paymentType == TablePaymentType.payOwnBill
+                          ? 'Connection fee · Food paid at the venue'
+                          : 'Includes food, drinks & the table',
+                      availability: t.seatMixLabel,
                     ),
+
+                    // ── Editorial vibe ───────────────────────────────────
                     if (t.vibeCopy != null &&
                         t.vibeCopy!.trim().isNotEmpty) ...[
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 28),
                       Text(
                         t.vibeCopy!,
                         style: GoogleFonts.dmSans(
-                          fontSize: 15,
-                          height: 1.45,
-                          color: NytoColors.cream.withValues(alpha: 0.72),
+                          fontSize: 16,
+                          height: 1.5,
+                          fontWeight: FontWeight.w400,
+                          color: NytoColors.cream.withValues(alpha: 0.78),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 14),
-                    NytoGlass.panel(
-                      borderRadius: 20,
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "What's included",
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color: NytoColors.cream.withValues(alpha: 0.45),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          if (t.inclusions.isEmpty)
-                            Text(
-                              t.paymentType == TablePaymentType.allInclusive
-                                  ? 'All-inclusive experience — details from the venue.'
-                                  : 'Connection fee with a complimentary drink. Food paid at the venue.',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 14,
-                                height: 1.4,
-                                color: NytoColors.cream.withValues(alpha: 0.7),
-                              ),
-                            )
-                          else
-                            for (final item in t.inclusions)
+
+                    // ── What's included (LEVEL 0 — typography only) ──────
+                    if (inclusions.isNotEmpty) ...[
+                      const SizedBox(height: 28),
+                      _SectionRule(),
+                      const SizedBox(height: 20),
+                      Text(
+                        "WHAT'S INCLUDED",
+                        style: GoogleFonts.dmSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
+                          color: NytoColors.cream.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      for (final item in inclusions)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      Icons.check_circle_outline,
-                                      size: 16,
-                                      color: NytoColors.ctaSoft,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        item,
-                                        style: GoogleFonts.dmSans(
-                                          fontSize: 14,
-                                          height: 1.35,
-                                          color: NytoColors.cream
-                                              .withValues(alpha: 0.8),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                padding: const EdgeInsets.only(top: 1),
+                                child: Icon(
+                                  Icons.check_rounded,
+                                  size: 16,
+                                  color: NytoColors.ctaSoft
+                                      .withValues(alpha: 0.85),
                                 ),
                               ),
-                          if (t.paymentType == TablePaymentType.payOwnBill) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              'You order food at the venue. NYTO covers the seat, matching, and a complimentary drink or snack.',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 13,
-                                height: 1.4,
-                                color: NytoColors.cream.withValues(alpha: 0.5),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  item,
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    height: 1.4,
+                                    color: NytoColors.cream
+                                        .withValues(alpha: 0.78),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    NytoGlass.panel(
-                      borderRadius: 20,
-                      padding: const EdgeInsets.all(18),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Matching',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              color: NytoColors.cream.withValues(alpha: 0.45),
-                            ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            t.matchingLine ??
-                                'Matched by age, interests, and personality.',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 14,
-                              height: 1.4,
-                              color: NytoColors.cream.withValues(alpha: 0.75),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                        ),
+                    ],
+
+                    // ── Matching (quiet differentiator) ──────────────────
+                    const SizedBox(height: 28),
+                    _SectionRule(),
+                    const SizedBox(height: 20),
+                    const _MatchingBlock(),
                   ],
                 ),
               ),
@@ -320,12 +288,113 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
             bottom: 0,
             child: _BookCtaBar(
               label: t.bookable ? 'Book this table' : 'Opens soon',
-              onPressed: _book,
+              onPressed: _booking ? null : _book,
               bottomInset: bottomInset,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Soft transactional surface — price only. No glass on supporting sections.
+class _PriceSurface extends StatelessWidget {
+  const _PriceSurface({
+    required this.priceLabel,
+    required this.support,
+    required this.availability,
+  });
+
+  final String priceLabel;
+  final String support;
+  final String availability;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: 0.055),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              priceLabel,
+              style: GoogleFonts.dmSerifDisplay(
+                fontSize: 28,
+                height: 1.1,
+                color: NytoColors.cream,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              support,
+              style: GoogleFonts.dmSans(
+                fontSize: 13,
+                height: 1.4,
+                color: NytoColors.cream.withValues(alpha: 0.52),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              availability,
+              style: GoogleFonts.dmSans(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: NytoColors.ctaSoft,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionRule extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      color: Colors.white.withValues(alpha: 0.08),
+    );
+  }
+}
+
+class _MatchingBlock extends StatelessWidget {
+  const _MatchingBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'MATCHED BY',
+          style: GoogleFonts.dmSans(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 1.2,
+            color: NytoColors.cream.withValues(alpha: 0.4),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          'Age · interests · personality',
+          style: GoogleFonts.dmSans(
+            fontSize: 15,
+            height: 1.4,
+            color: NytoColors.cream.withValues(alpha: 0.72),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -339,11 +408,13 @@ class _BookCtaBar extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final double bottomInset;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
@@ -374,25 +445,27 @@ class _BookCtaBar extends StatelessWidget {
                   height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(28),
-                    gradient: const LinearGradient(
+                    gradient: LinearGradient(
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
-                      colors: [
-                        NytoColors.ctaSoft,
-                        NytoColors.cta,
-                        NytoColors.ctaDeep,
-                      ],
+                      colors: enabled
+                          ? const [
+                              NytoColors.ctaSoft,
+                              NytoColors.cta,
+                              NytoColors.ctaDeep,
+                            ]
+                          : [
+                              NytoColors.cta.withValues(alpha: 0.45),
+                              NytoColors.ctaDeep.withValues(alpha: 0.45),
+                            ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: NytoColors.cta.withValues(alpha: 0.28),
+                        color: NytoColors.cta.withValues(
+                          alpha: enabled ? 0.28 : 0.12,
+                        ),
                         blurRadius: 20,
                         offset: const Offset(0, 8),
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -402,7 +475,9 @@ class _BookCtaBar extends StatelessWidget {
                       style: GoogleFonts.dmSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: Colors.white.withValues(
+                          alpha: enabled ? 1 : 0.7,
+                        ),
                         letterSpacing: 0.2,
                       ),
                     ),
@@ -417,26 +492,28 @@ class _BookCtaBar extends StatelessWidget {
   }
 }
 
-class _Pill extends StatelessWidget {
-  const _Pill({required this.label});
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({required this.label});
 
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: NytoColors.cta.withValues(alpha: 0.14),
-        border: Border.all(color: NytoColors.ctaSoft.withValues(alpha: 0.35)),
+        color: NytoColors.cta.withValues(alpha: 0.1),
+        border: Border.all(
+          color: NytoColors.ctaSoft.withValues(alpha: 0.28),
+        ),
       ),
       child: Text(
         label,
         style: GoogleFonts.dmSans(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          color: NytoColors.ctaSoft,
+          color: NytoColors.ctaSoft.withValues(alpha: 0.92),
         ),
       ),
     );

@@ -28,7 +28,6 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
 
   bool get _canSave {
     if (_style == null) return false;
-    if (_line.text.trim().length < 2) return false;
     if (_singles && _intent == null) return false;
     return true;
   }
@@ -46,7 +45,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
     try {
       await authApi.updateMe({
         'conversationStyle': _style,
-        'tableOneLiner': _line.text.trim(),
+        if (_line.text.trim().isNotEmpty) 'tableOneLiner': _line.text.trim(),
         if (_singles) 'datingIntent': _intent,
       });
       if (!mounted) return;
@@ -131,11 +130,10 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
                   _choice('A mix', 'mixed'),
                   _choice('Lively', 'lively'),
                   const SizedBox(height: 22),
-                  _label('ONE LINE ABOUT YOU'),
+                  _label('ONE LINE ABOUT YOU · OPTIONAL'),
                   const SizedBox(height: 10),
                   TextField(
                     controller: _line,
-                    onChanged: (_) => setState(() {}),
                     maxLength: 80,
                     style: GoogleFonts.dmSans(color: NytoColors.cream),
                     decoration: InputDecoration(
@@ -274,9 +272,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
 bool tableProfileComplete(Map<String, dynamic>? user, NytoTableType type) {
   if (user == null) return false;
   final style = user['conversationStyle'] as String?;
-  final line = user['tableOneLiner'] as String?;
   if (style == null || style.isEmpty) return false;
-  if (line == null || line.trim().length < 2) return false;
   if (type == NytoTableType.singles) {
     final intent = user['datingIntent'] as String?;
     if (intent == null || intent.isEmpty) return false;

@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
-import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:video_player/video_player.dart';
 
-/// Zomato-style food reel: one clip at a time, story bars, auto-advance.
+/// Editorial food reel: metadata on the page, hero media, story progress.
 /// Local assets for now — swap paths for S3 URLs later without changing UI.
 class TableMenuGallery extends StatefulWidget {
   const TableMenuGallery({
@@ -35,11 +36,14 @@ class TableMenuGallery extends StatefulWidget {
     'Sides',
   ];
 
+  static const _mediaRadius = 18.0;
+
   @override
   State<TableMenuGallery> createState() => _TableMenuGalleryState();
 }
 
-class _TableMenuGalleryState extends State<TableMenuGallery> {
+class _TableMenuGalleryState extends State<TableMenuGallery>
+    with WidgetsBindingObserver {
   late final List<({String label, String asset})> _clips;
   int _index = 0;
   VideoPlayerController? _current;
@@ -47,12 +51,34 @@ class _TableMenuGalleryState extends State<TableMenuGallery> {
   bool _ready = false;
   double _progress = 0;
   bool _advancing = false;
+  bool _prefetching = false;
+  int _loadGen = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _clips = _clipsForTable();
-    _loadIndex(0, prefetchNext: true);
+    unawaited(_loadIndex(0, prefetchNext: true));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _current?.removeListener(_onTick);
+    _current?.dispose();
+    _next?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_ensurePlaying(_current));
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _current?.pause();
+    }
   }
 
   List<({String label, String asset})> _clipsForTable() {
@@ -81,8 +107,26 @@ class _TableMenuGalleryState extends State<TableMenuGallery> {
     }
   }
 
+  Future<void> _ensurePlaying(VideoPlayerController? controller) async {
+    if (controller == null || !controller.value.isInitialized) return;
+    try {
+      if (!controller.value.isPlaying) {
+        await controller.play();
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      if (!mounted || !identical(_current, controller)) return;
+      if (!controller.value.isPlaying &&
+          controller.value.position <
+              controller.value.duration - const Duration(milliseconds: 200)) {
+        await controller.seekTo(controller.value.position);
+        await controller.play();
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadIndex(int index, {required bool prefetchNext}) async {
     if (_clips.isEmpty) return;
+    final gen = ++_loadGen;
     final i = index % _clips.length;
 
     VideoPlayerController? controller;
@@ -94,6 +138,11 @@ class _TableMenuGalleryState extends State<TableMenuGallery> {
       await _next?.dispose();
       _next = null;
       controller = await _init(_clips[i].asset);
+    }
+
+    if (gen != _loadGen) {
+      await controller?.dispose();
+      return;
     }
 
     final old = _current;
@@ -119,39 +168,66 @@ class _TableMenuGalleryState extends State<TableMenuGallery> {
     });
     controller.addListener(_onTick);
     await controller.seekTo(Duration.zero);
-    await controller.play();
+    await _ensurePlaying(controller);
     await old?.dispose();
 
-    if (prefetchNext && _clips.length > 1) {
-      final nextIndex = (i + 1) % _clips.length;
+    if (!prefetchNext || _clips.length <= 1 || gen != _loadGen) return;
+
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      if (!mounted || gen != _loadGen) return;
+      unawaited(_prefetchNext(i));
+    });
+  }
+
+  Future<void> _prefetchNext(int currentIndex) async {
+    if (_prefetching || _clips.length <= 1) return;
+    _prefetching = true;
+    try {
+      final nextIndex = (currentIndex + 1) % _clips.length;
+      if (_next != null) return;
       final warmed = await _init(_clips[nextIndex].asset);
       if (!mounted) {
         await warmed?.dispose();
         return;
       }
+      await _ensurePlaying(_current);
       await _next?.dispose();
       _next = warmed;
+    } finally {
+      _prefetching = false;
     }
   }
 
   void _onTick() {
     final c = _current;
     if (c == null || !c.value.isInitialized || !mounted) return;
+
     final total = c.value.duration.inMilliseconds;
     if (total <= 0) return;
+
     final pos = c.value.position.inMilliseconds.clamp(0, total);
     final nextProgress = pos / total;
     if ((nextProgress - _progress).abs() > 0.008) {
       setState(() => _progress = nextProgress);
     }
-    final ended =
+
+    final nearEnd =
         c.value.duration > Duration.zero &&
         c.value.position >=
             c.value.duration - const Duration(milliseconds: 120);
-    if (ended && !_advancing) {
+    final stalled = !c.value.isPlaying &&
+        !nearEnd &&
+        c.value.position > Duration.zero;
+
+    if (nearEnd && !_advancing) {
       _advancing = true;
       c.removeListener(_onTick);
-      _goTo(_index + 1);
+      unawaited(_goTo(_index + 1));
+      return;
+    }
+
+    if (stalled) {
+      unawaited(_ensurePlaying(c));
     }
   }
 
@@ -162,150 +238,122 @@ class _TableMenuGalleryState extends State<TableMenuGallery> {
   void _onTapDown(TapDownDetails details, BoxConstraints constraints) {
     final x = details.localPosition.dx;
     if (x < constraints.maxWidth * 0.35) {
-      _goTo(_index - 1 < 0 ? _clips.length - 1 : _index - 1);
+      unawaited(_goTo(_index - 1 < 0 ? _clips.length - 1 : _index - 1));
     } else {
-      _goTo(_index + 1);
+      unawaited(_goTo(_index + 1));
     }
   }
 
   @override
-  void dispose() {
-    _current?.removeListener(_onTick);
-    _current?.dispose();
-    _next?.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final subtitle = widget.inclusions.isNotEmpty
-        ? widget.inclusions.take(2).join(' · ')
-        : 'Food & drinks included with your seat';
     final label = _clips.isEmpty ? '' : _clips[_index].label;
 
-    return NytoGlass.panel(
-      borderRadius: 20,
-      padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              'On the table',
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                color: NytoColors.cream.withValues(alpha: 0.45),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Text(
-              subtitle,
-              style: GoogleFonts.dmSans(
-                fontSize: 13,
-                color: NytoColors.cream.withValues(alpha: 0.55),
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapDown: (d) => _onTapDown(d, constraints),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: AspectRatio(
-                    aspectRatio: 2.05,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        ColoredBox(
-                          color: NytoColors.cta.withValues(alpha: 0.1),
-                          child: _ready &&
-                                  _current != null &&
-                                  _current!.value.isInitialized
-                              ? FittedBox(
-                                  fit: BoxFit.cover,
-                                  clipBehavior: Clip.hardEdge,
-                                  child: SizedBox(
-                                    width: _current!.value.size.width,
-                                    height: _current!.value.size.height,
-                                    child: VideoPlayer(_current!),
-                                  ),
-                                )
-                              : const Center(
-                                  child: SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: NytoColors.cta,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        Positioned(
-                          left: 10,
-                          right: 10,
-                          top: 10,
-                          child: Row(
-                            children: [
-                              for (var i = 0; i < _clips.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 4),
-                                Expanded(
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(99),
-                                    child: LinearProgressIndicator(
-                                      value: i < _index
-                                          ? 1
-                                          : i == _index
-                                              ? _progress
-                                              : 0,
-                                      minHeight: 3,
-                                      backgroundColor:
-                                          Colors.white.withValues(alpha: 0.28),
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          left: 12,
-                          right: 12,
-                          bottom: 12,
-                          child: Text(
-                            '$label  ›',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              shadows: const [
-                                Shadow(
-                                  blurRadius: 8,
-                                  color: Colors.black54,
-                                ),
-                              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => _onTapDown(d, constraints),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(TableMenuGallery._mediaRadius),
+            child: AspectRatio(
+              aspectRatio: 1.85,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(
+                    color: NytoColors.cta.withValues(alpha: 0.1),
+                    child: _ready &&
+                            _current != null &&
+                            _current!.value.isInitialized
+                        ? FittedBox(
+                            fit: BoxFit.cover,
+                            clipBehavior: Clip.hardEdge,
+                            child: SizedBox(
+                              width: _current!.value.size.width,
+                              height: _current!.value.size.height,
+                              child: VideoPlayer(_current!),
+                            ),
+                          )
+                        : const Center(
+                            child: SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: NytoColors.cta,
+                              ),
                             ),
                           ),
-                        ),
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color(0x00000000),
+                          Color(0x00000000),
+                          Color(0x4D000000),
+                          Color(0x8A000000),
+                        ],
+                        stops: [0.0, 0.52, 0.78, 1.0],
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    top: 12,
+                    child: Row(
+                      children: [
+                        for (var i = 0; i < _clips.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 3),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(99),
+                              child: LinearProgressIndicator(
+                                value: i < _index
+                                    ? 1
+                                    : i == _index
+                                        ? _progress
+                                        : 0,
+                                minHeight: 2,
+                                backgroundColor:
+                                    Colors.white.withValues(alpha: 0.22),
+                                color: Colors.white.withValues(alpha: 0.92),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ),
-              );
-            },
+                  Positioned(
+                    left: 14,
+                    bottom: 14,
+                    right: 14,
+                    child: Text(
+                      '$label  ›',
+                      style: GoogleFonts.dmSans(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.2,
+                        color: Colors.white,
+                        shadows: const [
+                          Shadow(
+                            blurRadius: 10,
+                            color: Color(0x99000000),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

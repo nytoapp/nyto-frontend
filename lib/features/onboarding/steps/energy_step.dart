@@ -215,7 +215,7 @@ class _EnergyStepState extends State<EnergyStep>
                     Text(
                       option.label,
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 28,
                         fontWeight: FontWeight.w500,
                         color: NytoColors.cream,

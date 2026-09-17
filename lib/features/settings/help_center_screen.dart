@@ -61,7 +61,7 @@ class HelpCenterScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 Text(
                   'What can we\nassist you with?',
-                  style: GoogleFonts.fraunces(
+                  style: GoogleFonts.dmSerifDisplay(
                     fontSize: 26,
                     height: 1.15,
                     color: NytoColors.cream,
@@ -186,7 +186,7 @@ class HelpCenterScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   'Create a ticket',
-                  style: GoogleFonts.fraunces(
+                  style: GoogleFonts.dmSerifDisplay(
                     fontSize: 22,
                     color: NytoColors.cream,
                   ),

@@ -23,7 +23,7 @@ class HelpTopicScreen extends StatelessWidget {
         children: [
           Text(
             title,
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 28,
               height: 1.15,
               color: NytoColors.cream,

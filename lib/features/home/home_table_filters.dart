@@ -365,7 +365,7 @@ class _FilterSheet extends StatelessWidget {
           children: [
             Text(
               title,
-              style: GoogleFonts.fraunces(
+              style: GoogleFonts.dmSerifDisplay(
                 fontSize: 22,
                 color: NytoColors.cream,
               ),

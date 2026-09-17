@@ -33,7 +33,7 @@ class AuthEditorialHeader extends StatelessWidget {
         const SizedBox(height: AuthTokens.space12),
         Text(
           title,
-          style: GoogleFonts.fraunces(
+          style: GoogleFonts.dmSerifDisplay(
             fontSize: 36,
             fontWeight: FontWeight.w500,
             height: 1.08,

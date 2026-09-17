@@ -141,7 +141,7 @@ class _MyBookingsStripState extends State<MyBookingsStrip> {
                         children: [
                           Text(
                             table?.fullDateLabel ?? 'Upcoming night',
-                            style: GoogleFonts.fraunces(
+                            style: GoogleFonts.dmSerifDisplay(
                               fontSize: 18,
                               color: NytoColors.cream,
                             ),

@@ -172,7 +172,7 @@ class _WeKnowYouStepState extends State<WeKnowYouStep>
                   child: Text(
                     'Hey $_name, we know you a little better now',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 26,
                       height: 1.2,
                       fontWeight: FontWeight.w500,

@@ -73,7 +73,7 @@ class _DigilockerStepState extends State<DigilockerStep> {
             children: [
               Text(
                 "Don't have DigiLocker?",
-                style: GoogleFonts.fraunces(
+                style: GoogleFonts.dmSerifDisplay(
                   fontSize: 22,
                   color: NytoColors.cream,
                 ),
@@ -158,7 +158,7 @@ class _DigilockerStepState extends State<DigilockerStep> {
                     Expanded(
                       child: Text(
                         'Government-backed ID check',
-                        style: GoogleFonts.fraunces(
+                        style: GoogleFonts.dmSerifDisplay(
                           fontSize: 20,
                           color: NytoColors.cream,
                         ),

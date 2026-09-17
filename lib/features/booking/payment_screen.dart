@@ -309,7 +309,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                   ),
                   Text(
                     'NYTO',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: NytoColors.cta,
@@ -337,7 +337,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
                     const SizedBox(height: 10),
                     Text(
                       'Pay for your seat.',
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 32,
                         fontWeight: FontWeight.w400,
                         color: NytoColors.cream,

@@ -165,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   Text(
                     'NYTO',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: NytoColors.cta,
@@ -201,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           )
                         : Text(
                             _initial,
-                            style: GoogleFonts.fraunces(
+                            style: GoogleFonts.dmSerifDisplay(
                               fontSize: 32,
                               color: NytoColors.cream,
                             ),
@@ -224,7 +224,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   textInputAction: TextInputAction.done,
                                   maxLength: 40,
                                   onSubmitted: (_) => _saveTypedName(),
-                                  style: GoogleFonts.fraunces(
+                                  style: GoogleFonts.dmSerifDisplay(
                                     fontSize: 26,
                                     fontWeight: FontWeight.w400,
                                     color: NytoColors.cream,
@@ -234,7 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     isDense: true,
                                     counterText: '',
                                     hintText: 'First name',
-                                    hintStyle: GoogleFonts.fraunces(
+                                    hintStyle: GoogleFonts.dmSerifDisplay(
                                       fontSize: 26,
                                       fontWeight: FontWeight.w400,
                                       color: NytoColors.creamMuted,
@@ -258,7 +258,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         else
                           Text(
                             _displayName,
-                            style: GoogleFonts.fraunces(
+                            style: GoogleFonts.dmSerifDisplay(
                               fontSize: 26,
                               fontWeight: FontWeight.w400,
                               color: NytoColors.cream,
@@ -309,7 +309,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Text(
                           '$_attended',
-                          style: GoogleFonts.fraunces(
+                          style: GoogleFonts.dmSerifDisplay(
                             fontSize: 48,
                             fontWeight: FontWeight.w400,
                             color: NytoColors.cream,
@@ -556,7 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Text(
                       'NYTO',
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 3,

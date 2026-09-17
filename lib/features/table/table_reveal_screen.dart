@@ -83,7 +83,7 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                 children: [
                   Text(
                     'NYTO',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: NytoColors.orange,
@@ -133,7 +133,7 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                   children: [
                     Text(
                       'Your table is ready.',
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 32,
                         fontWeight: FontWeight.w400,
                         color: NytoColors.cream,
@@ -176,7 +176,7 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                               Expanded(
                                 child: Text(
                                   'Caperberry',
-                                  style: GoogleFonts.fraunces(
+                                  style: GoogleFonts.dmSerifDisplay(
                                     fontSize: 24,
                                     fontWeight: FontWeight.w400,
                                     color: NytoColors.cream,
@@ -310,7 +310,7 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                                   const SizedBox(height: 6),
                                   Text(
                                     item.$2,
-                                    style: GoogleFonts.fraunces(
+                                    style: GoogleFonts.dmSerifDisplay(
                                       fontSize: 16,
                                       fontStyle: FontStyle.italic,
                                       fontWeight: FontWeight.w400,
@@ -423,7 +423,7 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                                     ),
                                     child: Text(
                                       '“${_starters[i]}”',
-                                      style: GoogleFonts.fraunces(
+                                      style: GoogleFonts.dmSerifDisplay(
                                         fontSize: 15,
                                         fontStyle: FontStyle.italic,
                                         color: NytoColors.cream,

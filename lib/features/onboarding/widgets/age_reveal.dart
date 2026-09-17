@@ -4,9 +4,10 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
+import 'package:nyto_app/features/onboarding/widgets/age_band_copy.dart';
 
 /// Editorial age reveal for DOB onboarding.
-/// Age is the hero. Geometry is quiet. Copy is minimal.
+/// Age is the hero. Geometry is quiet. Copy is the social reading.
 class AgeReveal extends StatefulWidget {
   const AgeReveal({super.key, required this.age});
 
@@ -26,19 +27,30 @@ class _AgeRevealState extends State<AgeReveal>
     super.initState();
     _enter = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..forward();
+      duration: const Duration(milliseconds: 420),
+    );
     _life = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 18000),
-    )..repeat();
+    );
+    _startMotion();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncReducedMotion();
   }
 
   @override
   void didUpdateWidget(covariant AgeReveal oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.age != widget.age) {
-      _enter.forward(from: 0);
+      if (MediaQuery.disableAnimationsOf(context)) {
+        _enter.value = 1;
+      } else {
+        _enter.forward(from: 0);
+      }
     }
   }
 
@@ -49,14 +61,27 @@ class _AgeRevealState extends State<AgeReveal>
     super.dispose();
   }
 
-  /// One quiet line. Age stays the hero — never “YOUR CHAPTER” energy.
-  String get _line {
-    final a = widget.age;
-    if (a <= 20) return "You're $a.";
-    if (a <= 24) return '$a suits you.';
-    if (a <= 29) return "You're $a.";
-    if (a <= 34) return '$a — a good age to meet your people.';
-    return "You're $a.";
+  void _startMotion() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _syncReducedMotion();
+    });
+  }
+
+  void _syncReducedMotion() {
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    if (reduce) {
+      _enter.value = 1;
+      _life.stop();
+      _life.value = 0;
+      return;
+    }
+    if (!_enter.isAnimating && _enter.value < 1) {
+      _enter.forward();
+    }
+    if (!_life.isAnimating) {
+      _life.repeat();
+    }
   }
 
   double _ageSize({required bool compact, required int digits}) {
@@ -71,22 +96,23 @@ class _AgeRevealState extends State<AgeReveal>
     final digits = widget.age.toString().length;
     final ageSize = _ageSize(compact: compact, digits: digits);
     final stageH = compact ? 200.0 : 236.0;
+    final caption = AgeBandCopy.forAge(widget.age);
 
     final lightT = CurvedAnimation(
       parent: _enter,
-      curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+      curve: const Interval(0.0, 0.45, curve: Curves.easeOut),
     );
     final ringT = CurvedAnimation(
       parent: _enter,
-      curve: const Interval(0.1, 0.65, curve: Cubic(0.22, 1, 0.36, 1)),
+      curve: const Interval(0.08, 0.7, curve: Cubic(0.22, 1, 0.36, 1)),
     );
     final numberT = CurvedAnimation(
       parent: _enter,
-      curve: const Interval(0.08, 0.55, curve: Cubic(0.22, 1, 0.36, 1)),
+      curve: const Interval(0.06, 0.58, curve: Cubic(0.22, 1, 0.36, 1)),
     );
     final copyT = CurvedAnimation(
       parent: _enter,
-      curve: const Interval(0.48, 0.9, curve: Curves.easeOut),
+      curve: const Interval(0.42, 1.0, curve: Curves.easeOut),
     );
 
     return AnimatedBuilder(
@@ -104,68 +130,95 @@ class _AgeRevealState extends State<AgeReveal>
                 alignment: Alignment.center,
                 clipBehavior: Clip.none,
                 children: [
-                  // Atmospheric light — soft, not neon
+                  // Stage light — slightly lifted bloom for the reveal moment
                   FadeTransition(
                     opacity: lightT,
                     child: Container(
-                      width: stageH * 1.05,
-                      height: stageH * 1.05,
+                      width: stageH * 1.28,
+                      height: stageH * 1.28,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: RadialGradient(
                           colors: [
                             NytoColors.cta.withValues(
-                              alpha: 0.14 + 0.03 * breath,
+                              alpha: 0.22 + 0.04 * breath,
                             ),
-                            NytoColors.ctaSoft.withValues(alpha: 0.04),
+                            NytoColors.ctaSoft.withValues(
+                              alpha: 0.08 + 0.02 * breath,
+                            ),
+                            NytoColors.cta.withValues(alpha: 0.03),
                             Colors.transparent,
                           ],
-                          stops: const [0.0, 0.38, 1.0],
+                          stops: const [0.0, 0.32, 0.58, 1.0],
                         ),
                       ),
                     ),
                   ),
                   FadeTransition(
-                    opacity: ringT,
-                    child: CustomPaint(
-                      size: Size(stageH * 1.2, stageH),
-                      painter: _AgeFramePainter(
-                        enter: ringT.value,
-                        phase: _life.value,
-                        seed: widget.age,
+                    opacity: lightT,
+                    child: Container(
+                      width: stageH * 0.92,
+                      height: stageH * 0.92,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            NytoColors.ctaSoft.withValues(
+                              alpha: 0.1 + 0.025 * breath,
+                            ),
+                            Colors.transparent,
+                          ],
+                          stops: const [0.0, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+                  ExcludeSemantics(
+                    child: FadeTransition(
+                      opacity: ringT,
+                      child: CustomPaint(
+                        size: Size(stageH * 1.2, stageH),
+                        painter: _AgeFramePainter(
+                          enter: ringT.value,
+                          phase: _life.value,
+                          seed: widget.age,
+                        ),
                       ),
                     ),
                   ),
                   FadeTransition(
                     opacity: numberT,
                     child: ScaleTransition(
-                      scale: Tween<double>(begin: 0.94, end: 1).animate(numberT),
+                      scale: Tween<double>(begin: 0.96, end: 1).animate(numberT),
                       child: Transform.translate(
                         offset: const Offset(0, 1.5),
-                        child: Text(
-                          '${widget.age}',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.fraunces(
-                            fontSize: ageSize,
-                            fontWeight: FontWeight.w400,
-                            height: 0.88,
-                            letterSpacing: digits >= 3
-                                ? -2.5
-                                : (ageSize > 120 ? -5.5 : -4),
-                            color: NytoColors.cream,
-                            shadows: [
-                              Shadow(
-                                color: NytoColors.cta.withValues(
-                                  alpha: 0.22 + 0.05 * breath,
+                        child: Semantics(
+                          label: 'Age ${widget.age}',
+                          child: Text(
+                            '${widget.age}',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.dmSerifDisplay(
+                              fontSize: ageSize,
+                              fontWeight: FontWeight.w400,
+                              height: 0.88,
+                              letterSpacing: digits >= 3
+                                  ? -2.5
+                                  : (ageSize > 120 ? -5.5 : -4),
+                              color: NytoColors.cream,
+                              shadows: [
+                                Shadow(
+                                  color: NytoColors.cta.withValues(
+                                    alpha: 0.28 + 0.06 * breath,
+                                  ),
+                                  blurRadius: 40,
                                 ),
-                                blurRadius: 36,
-                              ),
-                              Shadow(
-                                color: Colors.black.withValues(alpha: 0.4),
-                                blurRadius: 20,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
+                                Shadow(
+                                  color: Colors.black.withValues(alpha: 0.38),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 10),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -174,22 +227,26 @@ class _AgeRevealState extends State<AgeReveal>
                 ],
               ),
             ),
+            const SizedBox(height: 4),
             FadeTransition(
               opacity: copyT,
               child: SlideTransition(
                 position: Tween<Offset>(
-                  begin: const Offset(0, 0.08),
+                  begin: const Offset(0, 0.06),
                   end: Offset.zero,
                 ).animate(copyT),
-                child: Text(
-                  _line,
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.dmSans(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w400,
-                    height: 1.35,
-                    letterSpacing: 0.2,
-                    color: NytoColors.cream.withValues(alpha: 0.52),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Text(
+                    caption,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.dmSans(
+                      fontSize: compact ? 15.5 : 16.5,
+                      fontWeight: FontWeight.w400,
+                      height: 1.4,
+                      letterSpacing: 0.15,
+                      color: NytoColors.cream.withValues(alpha: 0.66),
+                    ),
                   ),
                 ),
               ),
@@ -201,7 +258,7 @@ class _AgeRevealState extends State<AgeReveal>
   }
 }
 
-/// Two–three intentional arcs + a couple of light points. Editorial, not HUD.
+/// Two–three intentional arcs + light points. Editorial, not HUD.
 class _AgeFramePainter extends CustomPainter {
   _AgeFramePainter({
     required this.enter,
@@ -217,19 +274,18 @@ class _AgeFramePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
     final t = Curves.easeOutCubic.transform(enter.clamp(0.0, 1.0));
-    final spin = phase * math.pi * 2 * 0.012; // barely moves
+    final spin = phase * math.pi * 2 * 0.01;
     final r = math.min(size.width, size.height) * 0.34;
 
-    // Soft core wash
     canvas.drawCircle(
       c,
-      r * 0.85,
+      r * 0.9,
       Paint()
         ..shader = ui.Gradient.radial(
           c,
-          r,
+          r * 1.05,
           [
-            NytoColors.cta.withValues(alpha: 0.06 * t),
+            NytoColors.cta.withValues(alpha: 0.09 * t),
             Colors.transparent,
           ],
         ),
@@ -243,47 +299,50 @@ class _AgeFramePainter extends CustomPainter {
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
+        ..strokeWidth = 1.15
         ..strokeCap = StrokeCap.round
-        ..color = NytoColors.ctaSoft.withValues(alpha: 0.38 * t),
+        ..color = NytoColors.ctaSoft.withValues(alpha: 0.42 * t),
     );
 
     // Inner shorter arc (offset, asymmetric)
     canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r * 0.78),
-      math.pi * 0.15 - spin * 0.6,
-      math.pi * 0.85 * t,
+      Rect.fromCircle(center: c, radius: r * 0.76),
+      math.pi * 0.18 - spin * 0.55,
+      math.pi * 0.82 * t,
       false,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.85
         ..strokeCap = StrokeCap.round
-        ..color = NytoColors.cream.withValues(alpha: 0.16 * t),
+        ..color = NytoColors.cream.withValues(alpha: 0.18 * t),
     );
 
-    // Whisper-thin guide ring
-    canvas.drawCircle(
-      c,
-      r * 1.08,
+    // Whisper guide — incomplete, not a full ring
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r * 1.1),
+      math.pi * 0.95 + spin * 0.3,
+      math.pi * 0.95 * t,
+      false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.6
-        ..color = NytoColors.cream.withValues(alpha: 0.06 * t),
+        ..strokeWidth = 0.55
+        ..strokeCap = StrokeCap.round
+        ..color = NytoColors.cream.withValues(alpha: 0.07 * t),
     );
 
-    // Two light points on the outer arc
+    // Accent points on the outer arc
     for (final frac in [0.08, 0.62]) {
       final a = -math.pi * 0.72 + spin + seed * 0.02 + math.pi * 1.35 * frac;
       final p = Offset(c.dx + math.cos(a) * r, c.dy + math.sin(a) * r);
       canvas.drawCircle(
         p,
-        2.2 * t,
-        Paint()..color = NytoColors.cta.withValues(alpha: 0.75 * t),
+        2.15 * t,
+        Paint()..color = NytoColors.cta.withValues(alpha: 0.78 * t),
       );
       canvas.drawCircle(
         p,
-        5.5 * t,
-        Paint()..color = NytoColors.cta.withValues(alpha: 0.1 * t),
+        5.2 * t,
+        Paint()..color = NytoColors.cta.withValues(alpha: 0.12 * t),
       );
     }
   }

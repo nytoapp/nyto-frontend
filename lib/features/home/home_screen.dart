@@ -530,7 +530,7 @@ class _HomeDiscoverTabState extends State<_HomeDiscoverTab>
               padding: const EdgeInsets.fromLTRB(22, 4, 22, 0),
               child: Text(
                 'What’s alive tonight',
-                style: GoogleFonts.fraunces(
+                style: GoogleFonts.dmSerifDisplay(
                   fontSize: 30,
                   fontWeight: FontWeight.w400,
                   height: 1.1,
@@ -731,7 +731,7 @@ class _SectionLabel extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           title,
-          style: GoogleFonts.fraunces(
+          style: GoogleFonts.dmSerifDisplay(
             fontSize: 22,
             height: 1.15,
             color: NytoColors.cream,
@@ -883,7 +883,7 @@ class _HomeEmptyState extends StatelessWidget {
                   ? 'No tables match these filters'
                   : 'No tables in $locationLabel',
               textAlign: TextAlign.center,
-              style: GoogleFonts.fraunces(
+              style: GoogleFonts.dmSerifDisplay(
                 fontSize: 22,
                 color: NytoColors.cream,
               ),
@@ -1157,7 +1157,7 @@ class _InvitationCard extends StatelessWidget {
                     const Spacer(),
                     Text(
                       table.weekday,
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 42,
                         height: 0.95,
                         fontWeight: FontWeight.w400,
@@ -1206,7 +1206,7 @@ class _InvitationCard extends StatelessWidget {
                       children: [
                         Text(
                           '₹${table.priceInr}',
-                          style: GoogleFonts.fraunces(
+                          style: GoogleFonts.dmSerifDisplay(
                             fontSize: 26,
                             color: NytoColors.cream,
                           ),
@@ -1276,7 +1276,7 @@ class _OpenTableRow extends StatelessWidget {
                   children: [
                     Text(
                       '${table.weekday} · ${table.dateLabel}',
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 18,
                         color: NytoColors.cream,
                       ),
@@ -1306,7 +1306,7 @@ class _OpenTableRow extends StatelessWidget {
                 children: [
                   Text(
                     '₹${table.priceInr}',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 18,
                       color: NytoColors.cream,
                     ),
@@ -1418,7 +1418,7 @@ class _InstantRailCard extends StatelessWidget {
                   '${table.weekday} ${table.dateLabel}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.fraunces(
+                  style: GoogleFonts.dmSerifDisplay(
                     fontSize: 18,
                     color: NytoColors.cream,
                   ),
@@ -1447,7 +1447,7 @@ class _InstantRailCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   '₹${table.priceInr}',
-                  style: GoogleFonts.fraunces(
+                  style: GoogleFonts.dmSerifDisplay(
                     fontSize: 16,
                     color: NytoColors.cream,
                   ),
@@ -1531,7 +1531,7 @@ class _ComingUpRailCardState extends State<_ComingUpRailCard> {
                 const SizedBox(height: 6),
                 Text(
                   table.dateLabel,
-                  style: GoogleFonts.fraunces(
+                  style: GoogleFonts.dmSerifDisplay(
                     fontSize: 20,
                     height: 1.05,
                     color: NytoColors.cream,

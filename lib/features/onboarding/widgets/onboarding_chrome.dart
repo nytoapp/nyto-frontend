@@ -167,7 +167,7 @@ class OnboardingTitle extends StatelessWidget {
       children: [
         Text(
           text,
-          style: GoogleFonts.fraunces(
+          style: GoogleFonts.dmSerifDisplay(
             fontSize: 30,
             fontWeight: FontWeight.w500,
             height: 1.15,

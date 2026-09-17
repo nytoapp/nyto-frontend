@@ -167,7 +167,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                       ),
                       Text(
                         'NYTO',
-                        style: GoogleFonts.fraunces(
+                        style: GoogleFonts.dmSerifDisplay(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: NytoColors.ctaSoft,
@@ -183,7 +183,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
                     children: [
                       Text(
                         'Invite friends',
-                        style: GoogleFonts.fraunces(
+                        style: GoogleFonts.dmSerifDisplay(
                           fontSize: 30,
                           height: 1.15,
                           color: NytoColors.cream,

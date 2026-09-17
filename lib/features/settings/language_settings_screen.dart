@@ -44,7 +44,7 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
         children: [
           Text(
             'How should\nNYTO speak?',
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 26,
               height: 1.15,
               color: NytoColors.cream,

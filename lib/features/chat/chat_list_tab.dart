@@ -517,7 +517,7 @@ class _EmptyPane extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               title,
-              style: GoogleFonts.fraunces(
+              style: GoogleFonts.dmSerifDisplay(
                 fontSize: 24,
                 color: NytoColors.cream,
               ),

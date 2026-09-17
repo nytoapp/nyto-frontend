@@ -89,7 +89,7 @@ class _BookingOpensScreenState extends State<BookingOpensScreen> {
             const SizedBox(height: 10),
             Text(
               'This table isn’t bookable yet.',
-              style: GoogleFonts.fraunces(
+              style: GoogleFonts.dmSerifDisplay(
                 fontSize: 28,
                 height: 1.15,
                 color: NytoColors.cream,
@@ -113,7 +113,7 @@ class _BookingOpensScreenState extends State<BookingOpensScreen> {
                 children: [
                   Text(
                     t.area,
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 22,
                       color: NytoColors.cream,
                     ),

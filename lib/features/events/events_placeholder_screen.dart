@@ -19,7 +19,7 @@ class EventsPlaceholderScreen extends StatelessWidget {
           children: [
             Text(
               'NYTO',
-              style: GoogleFonts.fraunces(
+              style: GoogleFonts.dmSerifDisplay(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: NytoColors.cta,
@@ -44,7 +44,7 @@ class EventsPlaceholderScreen extends StatelessWidget {
                       Text(
                         'Curated events,\ncoming soon for you.',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.fraunces(
+                        style: GoogleFonts.dmSerifDisplay(
                           fontSize: 26,
                           height: 1.2,
                           color: NytoColors.cream,

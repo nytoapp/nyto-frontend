@@ -56,14 +56,14 @@ class AppTheme {
 
     return base.copyWith(
       textTheme: TextTheme(
-        displayLarge: GoogleFonts.fraunces(
+        displayLarge: GoogleFonts.dmSerifDisplay(
           fontSize: 34,
           fontWeight: FontWeight.w400,
           color: NytoColors.headline,
           height: 1.15,
           letterSpacing: -0.2,
         ),
-        headlineMedium: GoogleFonts.fraunces(
+        headlineMedium: GoogleFonts.dmSerifDisplay(
           fontSize: 26,
           fontWeight: FontWeight.w300,
           color: NytoColors.headline,

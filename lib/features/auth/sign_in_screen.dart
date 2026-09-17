@@ -190,7 +190,7 @@ class _SignInScreenState extends State<SignInScreen> {
                   children: [
                     Text(
                       'Welcome back',
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 32,
                         fontWeight: FontWeight.w500,
                         color: NytoColors.cream,

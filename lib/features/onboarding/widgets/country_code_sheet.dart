@@ -41,7 +41,7 @@ Future<CountryDial?> showCountryCodeSheet(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Country code',
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 22,
                         color: NytoColors.cream,
                       ),

@@ -194,7 +194,7 @@ class _CuratingStepState extends State<CuratingStep>
                             ? 'Your seat vibe is set'
                             : 'We’re seating your vibe',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.fraunces(
+                        style: GoogleFonts.dmSerifDisplay(
                           fontSize: 26,
                           fontWeight: FontWeight.w500,
                           color: NytoColors.cream,

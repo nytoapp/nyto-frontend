@@ -149,7 +149,7 @@ class _BookingConfirmedScreenState extends State<BookingConfirmedScreen>
                 opacity: _fade,
                 child: Text(
                   "You're in.",
-                  style: GoogleFonts.fraunces(
+                  style: GoogleFonts.dmSerifDisplay(
                     fontSize: 34,
                     fontWeight: FontWeight.w400,
                     color: NytoColors.cream,

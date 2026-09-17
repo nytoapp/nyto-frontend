@@ -37,25 +37,25 @@ abstract final class WelcomeVideoClip {
       assetPath: 'assets/video/welcome_01.mp4',
       loopEnd: Duration(milliseconds: 7280),
       headline: 'Your vibe.\nYour experience.',
-      caption: 'Find something you want to do—or create it yourself.',
+      caption: 'Find something you want to do, or create it yourself.',
     ),
     WelcomeClipConfig(
       assetPath: 'assets/video/welcome_02.mp4',
       loopEnd: Duration(milliseconds: 7480),
       headline: 'Real people.\nReal plans.',
-      caption: 'Verified guests, clear details — your table, your night.',
+      caption: 'Verified guests, clear details. Your table, your night.',
     ),
     WelcomeClipConfig(
       assetPath: 'assets/video/welcome_03.mp4',
       loopEnd: Duration(milliseconds: 7480),
       headline: 'You choose\nthe experience.',
-      caption: 'Dinner, runs, parties—or create your own.',
+      caption: 'Dinner, runs, parties, or create your own.',
     ),
     WelcomeClipConfig(
       assetPath: 'assets/video/welcome_04.mp4',
       loopEnd: Duration(milliseconds: 7480),
       headline: 'Host it. Join it.\nBuild your people.',
-      caption: 'Set the vibe, invite your crowd—grow together.',
+      caption: 'Set the vibe, invite your crowd. Grow together.',
     ),
   ];
 

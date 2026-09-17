@@ -249,12 +249,12 @@ class OnboardingOptions {
     (
       id: 'ambiverted',
       label: 'Ambiverted',
-      hint: 'I enjoy both — it depends on the moment.',
+      hint: 'I enjoy both. It depends on the moment.',
     ),
     (
       id: 'extroverted',
       label: 'Extroverted',
-      hint: 'I love being around people — it gives me energy.',
+      hint: 'I love being around people. It gives me energy.',
     ),
   ];
 

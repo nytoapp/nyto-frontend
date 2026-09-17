@@ -133,7 +133,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
         children: [
           Text(
             'Your nights\nahead.',
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 28,
               height: 1.15,
               color: NytoColors.cream,
@@ -218,7 +218,7 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> {
                               Expanded(
                                 child: Text(
                                   b.table?.weekday ?? 'Night',
-                                  style: GoogleFonts.fraunces(
+                                  style: GoogleFonts.dmSerifDisplay(
                                     fontSize: 22,
                                     color: NytoColors.cream,
                                   ),

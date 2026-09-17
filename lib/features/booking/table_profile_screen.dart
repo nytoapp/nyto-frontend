@@ -85,7 +85,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
                   ),
                   Text(
                     'NYTO',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: NytoColors.cta,
@@ -111,7 +111,7 @@ class _TableProfileScreenState extends State<TableProfileScreen> {
                   const SizedBox(height: 10),
                   Text(
                     'How should we seat you?',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 32,
                       color: NytoColors.cream,
                     ),

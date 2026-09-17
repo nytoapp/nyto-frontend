@@ -247,7 +247,7 @@ class _AgeStepState extends State<AgeStep> {
           // Fill the middle: age reveal is composed into the remaining space.
           Expanded(
             child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 420),
+              duration: const Duration(milliseconds: 360),
               switchInCurve: const Cubic(0.22, 1, 0.36, 1),
               switchOutCurve: Curves.easeIn,
               transitionBuilder: (child, animation) {

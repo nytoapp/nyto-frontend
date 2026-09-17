@@ -111,7 +111,7 @@ class _NotificationsStepState extends State<NotificationsStep>
           Text(
             'Don’t miss your table',
             textAlign: TextAlign.center,
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 28,
               fontWeight: FontWeight.w500,
               color: NytoColors.cream,

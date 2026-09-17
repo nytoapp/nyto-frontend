@@ -176,7 +176,7 @@ class _LoginSecurityScreenState extends State<LoginSecurityScreen> {
         children: [
           Text(
             'How you sign in',
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 26,
               height: 1.15,
               color: NytoColors.cream,
@@ -388,7 +388,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
       ),
       title: Text(
         'Delete account?',
-        style: GoogleFonts.fraunces(
+        style: GoogleFonts.dmSerifDisplay(
           fontSize: 22,
           color: NytoColors.cream,
         ),

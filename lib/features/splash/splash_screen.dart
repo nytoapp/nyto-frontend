@@ -70,7 +70,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _warmFirstClip() async {
     await GoogleFonts.pendingFonts([
-      GoogleFonts.fraunces(fontWeight: FontWeight.w500),
+      GoogleFonts.dmSerifDisplay(fontWeight: FontWeight.w500),
       GoogleFonts.dmSans(fontWeight: FontWeight.w400),
     ]);
     if (!mounted || _navigated) return;

@@ -36,7 +36,7 @@ Future<void> showRateAppSheet(BuildContext context) {
               Text(
                 'Do you enjoy NYTO?',
                 textAlign: TextAlign.center,
-                style: GoogleFonts.fraunces(
+                style: GoogleFonts.dmSerifDisplay(
                   fontSize: 24,
                   color: NytoColors.cream,
                 ),

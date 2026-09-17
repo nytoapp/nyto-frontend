@@ -533,7 +533,7 @@ class _CopyBlock extends StatelessWidget {
         Text(
           headline,
           textAlign: TextAlign.center,
-          style: GoogleFonts.fraunces(
+          style: GoogleFonts.dmSerifDisplay(
             fontSize: 34,
             fontWeight: FontWeight.w500,
             height: 1.18,

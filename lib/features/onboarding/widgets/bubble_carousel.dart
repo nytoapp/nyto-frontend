@@ -434,7 +434,7 @@ class _BubbleCopyBlock extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.fraunces(
+              style: GoogleFonts.dmSerifDisplay(
                 fontSize: 24,
                 fontWeight: FontWeight.w500,
                 height: 1.2,

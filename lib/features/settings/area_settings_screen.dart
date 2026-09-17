@@ -93,7 +93,7 @@ class _AreaSettingsScreenState extends State<AreaSettingsScreen> {
         children: [
           Text(
             'Where in\nHyderabad?',
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 26,
               height: 1.15,
               color: NytoColors.cream,

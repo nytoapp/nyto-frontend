@@ -60,7 +60,7 @@ class _CitySettingsScreenState extends State<CitySettingsScreen> {
         children: [
           Text(
             'Meet people\naround your city.',
-            style: GoogleFonts.fraunces(
+            style: GoogleFonts.dmSerifDisplay(
               fontSize: 26,
               height: 1.15,
               color: NytoColors.cream,

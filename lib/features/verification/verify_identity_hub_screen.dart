@@ -171,7 +171,7 @@ class _VerifyIdentityHubScreenState extends State<VerifyIdentityHubScreen> {
             children: [
               Text(
                 _statusTitle,
-                style: GoogleFonts.fraunces(
+                style: GoogleFonts.dmSerifDisplay(
                   fontSize: 28,
                   height: 1.15,
                   fontWeight: FontWeight.w500,

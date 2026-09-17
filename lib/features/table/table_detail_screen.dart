@@ -125,7 +125,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                     const SizedBox(height: 18),
                     Text(
                       t.venueName ?? t.area,
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 30,
                         height: 1.15,
                         color: NytoColors.cream,
@@ -171,7 +171,7 @@ class _TableDetailScreenState extends State<TableDetailScreen> {
                         children: [
                           Text(
                             '₹${t.priceInr} / seat',
-                            style: GoogleFonts.fraunces(
+                            style: GoogleFonts.dmSerifDisplay(
                               fontSize: 28,
                               color: NytoColors.cream,
                             ),

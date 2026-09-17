@@ -189,7 +189,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                   ),
                   Text(
                     'NYTO',
-                    style: GoogleFonts.fraunces(
+                    style: GoogleFonts.dmSerifDisplay(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: NytoColors.cta,
@@ -207,7 +207,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
                   children: [
                     Text(
                       _headline,
-                      style: GoogleFonts.fraunces(
+                      style: GoogleFonts.dmSerifDisplay(
                         fontSize: 30,
                         fontWeight: FontWeight.w400,
                         color: NytoColors.cream,
@@ -402,7 +402,7 @@ class _OptionCard extends StatelessWidget {
               ),
               Text(
                 price,
-                style: GoogleFonts.fraunces(
+                style: GoogleFonts.dmSerifDisplay(
                   fontSize: 20,
                   color: NytoColors.cream,
                 ),

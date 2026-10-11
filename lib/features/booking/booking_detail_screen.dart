@@ -404,7 +404,9 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            "Table mates unlock closer to dinner. You'll be notified.",
+                            _status == 'CANCELLED'
+                                ? 'This night is cancelled. If you paid, your refund is on the way.'
+                                : "Table mates unlock closer to dinner. You'll be notified.",
                             style: GoogleFonts.dmSans(
                               fontSize: 13,
                               height: 1.4,

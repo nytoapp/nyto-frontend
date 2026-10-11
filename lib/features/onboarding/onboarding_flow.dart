@@ -116,20 +116,37 @@ class PostAuthOnboardingFlow extends StatefulWidget {
 class _PostAuthOnboardingFlowState extends State<PostAuthOnboardingFlow> {
   OnboardingData get _data => widget.data;
   bool _openingName = false;
+  bool _openingAge = false;
 
   @override
   void initState() {
     super.initState();
-    // Resume: if gender already chosen, open Name on top so Back → Gender.
+    // Resume at the first missing required field (gender → name → DOB).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final g = _data.gender?.trim() ?? '';
-      if (g.isEmpty) return;
-      final name = _data.firstName.trim();
-      if (name.isEmpty || name == 'Guest' || (_data.dateOfBirth ?? '').isEmpty) {
-        _openFirstName();
-      }
+      _resumeFromProfile();
     });
+  }
+
+  void _resumeFromProfile() {
+    final g = _data.gender?.trim() ?? '';
+    if (g.isEmpty) return;
+
+    final name = _data.firstName.trim();
+    final needsName = name.isEmpty || name == 'Guest';
+    final needsDob = (_data.dateOfBirth ?? '').trim().isEmpty;
+
+    if (needsName) {
+      _openFirstName();
+      return;
+    }
+    if (needsDob) {
+      _openAge();
+      return;
+    }
+
+    // Required profile already on server — don't trap returning users here.
+    _goHome();
   }
 
   void _open(Widget page) {
@@ -144,23 +161,43 @@ class _PostAuthOnboardingFlowState extends State<PostAuthOnboardingFlow> {
     } catch (_) {}
   }
 
-  Future<void> _syncProfile() async {
-    await _saveFirstName();
-    final body = _data.toProfilePatch();
-    body.remove('firstName');
+  /// Persist a slice of profile immediately so cold start can't rewind.
+  Future<void> _patchMe(Map<String, dynamic> body) async {
     if (body.isEmpty) return;
     try {
       await authApi.updateMe(body);
     } catch (_) {}
   }
 
-  Future<void> _finish() async {
-    await _syncProfile();
+  Future<void> _syncProfile() async {
+    await _saveFirstName();
+    final body = _data.toProfilePatch();
+    body.remove('firstName');
+    if (body.isEmpty) return;
+    await _patchMe(body);
+  }
+
+  void _goHome() {
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       onboardingRoute(const HomeScreen()),
       (_) => false,
     );
+  }
+
+  Future<void> _finish() async {
+    await _syncProfile();
+    if (!mounted) return;
+    _goHome();
+  }
+
+  Future<void> _afterGenderSelected() async {
+    final g = _data.gender?.trim() ?? '';
+    if (g.isNotEmpty) {
+      await _patchMe({'gender': g});
+    }
+    if (!mounted) return;
+    _openFirstName();
   }
 
   void _openFirstName() {
@@ -175,7 +212,7 @@ class _PostAuthOnboardingFlowState extends State<PostAuthOnboardingFlow> {
               allowBack: true,
               onContinue: () {
                 _saveFirstName();
-                _toAge();
+                _openAge();
               },
             ),
           ),
@@ -185,9 +222,28 @@ class _PostAuthOnboardingFlowState extends State<PostAuthOnboardingFlow> {
     });
   }
 
-  void _toAge() => _open(
-        AgeStep(data: _data, onContinue: _toEnergy),
-      );
+  void _openAge() {
+    if (_openingAge) return;
+    _openingAge = true;
+    Navigator.of(context)
+        .push(
+          onboardingRoute(
+            AgeStep(
+              data: _data,
+              onContinue: () {
+                final dob = _data.dateOfBirth?.trim() ?? '';
+                if (dob.isNotEmpty) {
+                  _patchMe({'dateOfBirth': dob});
+                }
+                _toEnergy();
+              },
+            ),
+          ),
+        )
+        .whenComplete(() {
+      if (mounted) _openingAge = false;
+    });
+  }
 
   void _toEnergy() => _open(
         EnergyStep(data: _data, onContinue: _toInterests),
@@ -227,7 +283,9 @@ class _PostAuthOnboardingFlowState extends State<PostAuthOnboardingFlow> {
       child: GenderStep(
         data: _data,
         allowBack: false,
-        onSelected: _openFirstName,
+        onSelected: () {
+          _afterGenderSelected();
+        },
       ),
     );
   }

@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/auth/auth_failure.dart';
 import 'package:nyto_app/core/auth/auth_repository.dart';
+import 'package:nyto_app/core/auth/auth_user.dart';
 import 'package:nyto_app/core/auth/providers/google_auth.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
+import 'package:nyto_app/features/onboarding/onboarding_flow.dart';
 import 'package:nyto_app/features/onboarding/widgets/google_g_logo.dart';
+import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 
 /// Returning-user entry — email + OTP.
 class SignInScreen extends StatefulWidget {
@@ -61,6 +64,21 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
+  /// Same gate as splash — incomplete profiles resume post-auth onboarding.
+  void _enterApp(AuthUser user) {
+    if (!mounted) return;
+    if (onboardingNeedsCompletion(user)) {
+      Navigator.of(context).pushAndRemoveUntil(
+        onboardingRoute(
+          PostAuthOnboardingFlow(data: onboardingDataFromUser(user)),
+        ),
+        (_) => false,
+      );
+      return;
+    }
+    _goHome();
+  }
+
   Future<void> _sendOtp() async {
     if (_loading) return;
     if (!_emailValid) {
@@ -96,11 +114,11 @@ class _SignInScreenState extends State<SignInScreen> {
       _error = null;
     });
     try {
-      await authRepository.verifyEmailCode(
+      final user = await authRepository.verifyEmailCode(
         email: _emailController.text.trim(),
         code: otp,
       );
-      _goHome();
+      _enterApp(user);
     } catch (error) {
       _otpController.clear();
       _handleFailure(error);
@@ -116,8 +134,8 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       final idToken = await NytoGoogleAuth.signIn();
       if (!mounted) return;
-      await authRepository.signInWithGoogle(idToken);
-      _goHome();
+      final user = await authRepository.signInWithGoogle(idToken);
+      _enterApp(user);
     } catch (error) {
       _handleFailure(error);
     }

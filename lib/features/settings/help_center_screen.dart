@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
 import 'package:nyto_app/features/settings/help_topic_screen.dart';
+import 'package:nyto_app/features/settings/open_ticket_sheet.dart';
 import 'package:nyto_app/features/settings/settings_chrome.dart';
 
 class HelpCenterScreen extends StatelessWidget {
@@ -204,14 +205,7 @@ class HelpCenterScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 SettingsPrimaryButton(
                   label: 'Open ticket',
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Support tickets — coming soon.'),
-                        backgroundColor: NytoColors.surface,
-                      ),
-                    );
-                  },
+                  onPressed: () => showOpenTicketSheet(context),
                 ),
               ],
             ),

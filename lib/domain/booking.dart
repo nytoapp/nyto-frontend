@@ -35,8 +35,22 @@ class BookingSummary {
   bool get isConfirmed =>
       status == 'CONFIRMED' || status == 'ATTENDED';
 
-  /// Paid seats stay locked. Unpaid holds never appear as a real booking.
-  bool get canCancel => false;
+  /// Guest may cancel unpaid holds anytime, or paid seats before the night starts.
+  /// Server still enforces attended / started / refund rules.
+  bool get canCancel {
+    if (status == 'CANCELLED' ||
+        status == 'ATTENDED' ||
+        status == 'NO_SHOW') {
+      return false;
+    }
+    if (status == 'PENDING_PAYMENT') return true;
+    if (status == 'CONFIRMED') {
+      final start = table?.startsAt;
+      if (start == null) return true;
+      return DateTime.now().isBefore(start);
+    }
+    return false;
+  }
 
   bool get isPaidSeat =>
       status == 'CONFIRMED' || status == 'ATTENDED';
@@ -44,7 +58,7 @@ class BookingSummary {
   bool get isCancelled =>
       status == 'CANCELLED' || status == 'NO_SHOW';
 
-  /// Who ended the booking — guest vs NYTO/ops.
+  /// Who ended the booking — guest vs NYTO/ops / hold TTL.
   bool get cancelledByUser {
     final reason = (cancelReason ?? '').trim().toLowerCase();
     return reason == 'user' ||
@@ -52,8 +66,14 @@ class BookingSummary {
         reason.contains('by you');
   }
 
-  String get cancelledByLabel =>
-      cancelledByUser ? 'Cancelled by you' : 'Cancelled by NYTO';
+  bool get holdExpired =>
+      (cancelReason ?? '').trim().toUpperCase() == 'HOLD_EXPIRED';
+
+  String get cancelledByLabel {
+    if (cancelledByUser) return 'Cancelled by you';
+    if (holdExpired) return 'Hold expired';
+    return 'Cancelled by NYTO';
+  }
 
   String get statusLabel => switch (status) {
         'PENDING_PAYMENT' => 'Awaiting payment',

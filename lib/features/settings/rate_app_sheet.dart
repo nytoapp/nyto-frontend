@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/core/widgets/nyto_glass.dart';
+import 'package:nyto_app/features/settings/open_ticket_sheet.dart';
 
 Future<void> showRateAppSheet(BuildContext context) {
   return showModalBottomSheet<void>(
@@ -58,14 +60,9 @@ Future<void> showRateAppSheet(BuildContext context) {
                     child: _SheetBtn(
                       label: 'Not really',
                       filled: false,
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Thanks — we’ll keep improving.'),
-                            backgroundColor: NytoColors.surface,
-                          ),
-                        );
+                        await showOpenTicketSheet(context);
                       },
                     ),
                   ),
@@ -74,14 +71,31 @@ Future<void> showRateAppSheet(BuildContext context) {
                     child: _SheetBtn(
                       label: 'Yes',
                       filled: true,
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Store rating — coming soon.'),
-                            backgroundColor: NytoColors.surface,
-                          ),
-                        );
+                        try {
+                          await supportApi.createTicket(
+                            subject: 'Positive app feedback',
+                            category: 'FEEDBACK',
+                            message:
+                                'Guest tapped Yes on rate NYTO — enjoying the product.',
+                          );
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Thanks — glad you’re enjoying NYTO.'),
+                              backgroundColor: NytoColors.surface,
+                            ),
+                          );
+                        } catch (_) {
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Thanks for the love.'),
+                              backgroundColor: NytoColors.surface,
+                            ),
+                          );
+                        }
                       },
                     ),
                   ),
@@ -109,37 +123,31 @@ class _SheetBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 50,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          gradient: filled
-              ? const LinearGradient(
-                  colors: [NytoColors.ctaSoft, NytoColors.cta],
-                )
-              : null,
-          color: filled ? null : Colors.transparent,
-          border: filled
-              ? null
-              : Border.all(color: NytoColors.cream.withValues(alpha: 0.22)),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(999),
-            child: Center(
-              child: Text(
-                label,
-                style: GoogleFonts.dmSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: filled
-                      ? Colors.white
-                      : NytoColors.cream.withValues(alpha: 0.85),
-                ),
-              ),
+    return Material(
+      color: filled ? NytoColors.cta : Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: filled
+                ? null
+                : Border.all(
+                    color: NytoColors.cream.withValues(alpha: 0.22),
+                  ),
+          ),
+          child: Text(
+            label,
+            style: GoogleFonts.dmSans(
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              color: filled
+                  ? Colors.white
+                  : NytoColors.cream.withValues(alpha: 0.85),
             ),
           ),
         ),

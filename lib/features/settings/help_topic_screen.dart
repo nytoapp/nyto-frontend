@@ -97,7 +97,7 @@ class HelpTopics {
           (
             heading: 'Changing or cancelling',
             body:
-                'You can manage upcoming reservations from My Bookings. Cancellation windows and refunds will follow NYTO’s booking policy (details coming soon).',
+                'You can manage upcoming reservations from My Bookings. Cancel unpaid holds anytime, or paid seats before the night starts — refunds follow NYTO’s capture ledger.',
           ),
           (
             heading: 'Venue & timing',

@@ -9,6 +9,7 @@ import 'package:nyto_app/domain/table.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
 import 'package:nyto_app/features/table/table_chat_screen.dart';
 import 'package:nyto_app/features/table/table_menu_gallery.dart';
+import 'package:nyto_app/features/table/table_reveal_screen.dart';
 
 /// Post-payment booking detail — venue + entry code + chat.
 class BookingDetailScreen extends StatefulWidget {
@@ -38,6 +39,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
   late UpcomingTable _table;
   String? _checkInCode;
   String _status = 'CONFIRMED';
+  String? _cancelReason;
   bool _loading = false;
 
   static const _dayMap = {
@@ -88,6 +90,10 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
             res['checkInCode'] as String? ??
             _checkInCode;
         _status = summary?.status ?? _status;
+        _cancelReason = summary?.cancelReason ?? _cancelReason;
+        if (_status == 'CANCELLED') {
+          _checkInCode = null;
+        }
         _loading = false;
       });
     } catch (_) {
@@ -122,6 +128,19 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
+  void _openReveal() {
+    if (widget.bookingId.startsWith('demo-')) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TableRevealScreen(
+          bookingId: widget.bookingId,
+          tableId: _table.id,
+          venueName: _table.venueName ?? _table.area,
+        ),
+      ),
+    );
+  }
+
   Future<void> _copyCode() async {
     final code = _checkInCode;
     if (code == null || code.isEmpty) return;
@@ -133,6 +152,84 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
         backgroundColor: NytoColors.surface,
       ),
     );
+  }
+
+  BookingSummary get _summary => BookingSummary(
+        id: widget.bookingId,
+        status: _status,
+        seatsBooked: 1,
+        bookingType: 'SOLO',
+        cancelReason: _cancelReason,
+        table: _table,
+      );
+
+  bool get _canCancel => _summary.canCancel;
+
+  Future<void> _cancelBooking() async {
+    if (!_canCancel || widget.bookingId.startsWith('demo-')) return;
+    final wasPaid = _isPaidSeat;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NytoColors.surface,
+        title: Text(
+          'Cancel this night?',
+          style: GoogleFonts.dmSans(
+            color: NytoColors.cream,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        content: Text(
+          wasPaid
+              ? 'Your seat will be released. If you paid, NYTO will refund you.'
+              : 'Your unpaid hold will be released.',
+          style: GoogleFonts.dmSans(color: NytoColors.creamMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Keep seat', style: GoogleFonts.dmSans()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Cancel booking',
+              style: GoogleFonts.dmSans(color: const Color(0xFFE11D48)),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await bookingsApi
+          .cancel(widget.bookingId)
+          .timeout(const Duration(seconds: 12));
+      if (!mounted) return;
+      // Reload so cancelReason / status match the server.
+      await _refresh();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            wasPaid ? 'Cancelled — refund processing' : 'Hold cancelled',
+          ),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+    } catch (err) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            err is Exception ? err.toString() : 'Could not cancel booking',
+          ),
+          backgroundColor: NytoColors.surface,
+        ),
+      );
+    }
   }
 
   @override
@@ -196,10 +293,14 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                   const SizedBox(height: 10),
                   Text(
                     _status == 'CANCELLED'
-                        ? 'Booking cancelled.'
+                        ? (_summary.holdExpired
+                            ? 'Hold expired.'
+                            : 'Booking cancelled.')
                         : _status == 'ATTENDED'
                             ? 'You’re checked in.'
-                            : 'Seat confirmed.',
+                            : _status == 'PENDING_PAYMENT'
+                                ? 'Finish payment to lock your seat.'
+                                : 'Seat confirmed.',
                     style: GoogleFonts.dmSerifDisplay(
                       fontSize: 32,
                       fontWeight: FontWeight.w400,
@@ -243,12 +344,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                                 ),
                               ),
                               child: Text(
-                                BookingSummary(
-                                  id: widget.bookingId,
-                                  status: _status,
-                                  seatsBooked: 1,
-                                  bookingType: 'SOLO',
-                                ).statusLabel,
+                                _summary.statusLabel,
                                 style: GoogleFonts.dmSans(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
@@ -406,7 +502,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                           child: Text(
                             _status == 'CANCELLED'
                                 ? 'This night is cancelled. If you paid, your refund is on the way.'
-                                : "Table mates unlock closer to dinner. You'll be notified.",
+                                : 'Table reveal unlocks mates and menu within 24 hours of start.',
                             style: GoogleFonts.dmSans(
                               fontSize: 13,
                               height: 1.4,
@@ -423,12 +519,12 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                       width: double.infinity,
                       height: 54,
                       child: ElevatedButton.icon(
-                        onPressed: _openChat,
+                        onPressed: _openReveal,
                         icon: const Icon(
-                          Icons.chat_bubble_outline_rounded,
+                          Icons.auto_awesome_rounded,
                           size: 20,
                         ),
-                        label: const Text('Open table chat'),
+                        label: const Text('Table reveal'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: NytoColors.cta,
                           foregroundColor: NytoColors.cream,
@@ -439,6 +535,58 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: _openChat,
+                        icon: const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 18,
+                        ),
+                        label: const Text('Open table chat'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: NytoColors.cream,
+                          side: BorderSide(
+                            color: NytoColors.cream.withValues(alpha: 0.25),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          textStyle: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_canCancel) ...[
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton(
+                        onPressed: _loading ? null : _cancelBooking,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: NytoColors.creamMuted,
+                          side: BorderSide(
+                            color: NytoColors.cream.withValues(alpha: 0.2),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          textStyle: GoogleFonts.dmSans(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        child: Text(
+                          _isPaidSeat ? 'Cancel & request refund' : 'Cancel hold',
                         ),
                       ),
                     ),

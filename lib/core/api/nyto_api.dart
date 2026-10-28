@@ -173,8 +173,45 @@ class BookingsApi {
     return _api.get('/bookings/$bookingId', auth: true);
   }
 
+  Future<Map<String, dynamic>> reveal(String bookingId) {
+    return _api.get('/bookings/$bookingId/reveal', auth: true);
+  }
+
   Future<Map<String, dynamic>> cancel(String bookingId) {
     return _api.post('/bookings/$bookingId/cancel', auth: true);
+  }
+}
+
+class SupportApi {
+  SupportApi(this._api);
+
+  final ApiClient _api;
+
+  Future<Map<String, dynamic>> createTicket({
+    required String subject,
+    required String category,
+    required String message,
+    String? bookingId,
+    String? venueId,
+  }) {
+    return _api.post(
+      '/support',
+      auth: true,
+      body: {
+        'subject': subject,
+        'category': category,
+        'message': message,
+        if (bookingId != null) 'bookingId': bookingId,
+        if (venueId != null) 'venueId': venueId,
+      },
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> listMine() async {
+    final json = await _api.get('/support/me', auth: true);
+    final tickets = json['tickets'];
+    if (tickets is! List) return [];
+    return tickets.cast<Map<String, dynamic>>();
   }
 }
 
@@ -210,3 +247,4 @@ final tablesApi = TablesApi(apiClient);
 final locationsApi = LocationsApi(apiClient);
 final bookingsApi = BookingsApi(apiClient);
 final verificationApi = VerificationApi(apiClient);
+final supportApi = SupportApi(apiClient);

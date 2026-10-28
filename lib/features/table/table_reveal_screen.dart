@@ -2,18 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:nyto_app/core/api/nyto_api.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/table/table_chat_screen.dart';
 
-/// Table reveal (~24h before) — match `designs/Screenshot (3724–3726)`.
+/// Table reveal (~24h before) — live mates/menu/countdown from `/bookings/:id/reveal`.
 class TableRevealScreen extends StatefulWidget {
   const TableRevealScreen({
     super.key,
+    required this.bookingId,
     this.tableId,
     this.venueName = 'Your table',
   });
 
-  /// When set, opens the real table group chat. Demo UI otherwise.
+  final String bookingId;
   final String? tableId;
   final String venueName;
 
@@ -22,39 +24,17 @@ class TableRevealScreen extends StatefulWidget {
 }
 
 class _TableRevealScreenState extends State<TableRevealScreen> {
-  static const _mates = [
-    'Product Designer · Indiranagar',
-    'Architect · Koramangala',
-    'Writer & Podcaster · Bandra',
-    'Investment Analyst · Church Street',
-    'Restaurateur · Whitefield',
-  ];
-
-  static const _menu = [
-    ('I FIRST', 'Burrata, heirloom tomato, aged balsamic.'),
-    ('II SECOND', 'Sea bass, saffron beurre blanc, crisp fennel.'),
-    ('III THIRD', 'Valrhona fondant, salted caramel, praline.'),
-  ];
-
-  static const _starters = [
-    'What’s the last meal that genuinely surprised you?',
-    'If you could eat anywhere in the world tomorrow — where?',
-    'One food opinion you’d defend to the bitter end.',
-  ];
-
-  late Duration _remaining;
+  Duration _remaining = Duration.zero;
   Timer? _timer;
+  bool _loading = true;
+  String? _error;
+  Map<String, dynamic>? _reveal;
   bool _pressed = false;
 
   @override
   void initState() {
     super.initState();
-    _remaining = const Duration(hours: 23, minutes: 39, seconds: 48);
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      if (_remaining.inSeconds <= 0) return;
-      setState(() => _remaining -= const Duration(seconds: 1));
-    });
+    _load();
   }
 
   @override
@@ -63,11 +43,101 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final res = await bookingsApi.reveal(widget.bookingId);
+      final reveal = res['reveal'];
+      if (reveal is! Map<String, dynamic>) {
+        throw Exception('Reveal payload missing');
+      }
+      final ms = (reveal['msUntilStart'] as num?)?.toInt() ?? 0;
+      if (!mounted) return;
+      setState(() {
+        _reveal = reveal;
+        _remaining = Duration(milliseconds: ms.clamp(0, 1 << 31));
+        _loading = false;
+      });
+      _timer?.cancel();
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        if (_remaining.inSeconds <= 0) return;
+        setState(() => _remaining -= const Duration(seconds: 1));
+      });
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = err.toString().replaceFirst('Exception: ', '');
+      });
+    }
+  }
+
   String get _countdown {
     final h = _remaining.inHours.toString().padLeft(2, '0');
     final m = (_remaining.inMinutes % 60).toString().padLeft(2, '0');
     final s = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
     return '$h:$m:$s';
+  }
+
+  String? get _tableId =>
+      (_reveal?['tableId'] as String?) ?? widget.tableId;
+
+  bool get _revealed => _reveal?['revealed'] == true;
+
+  List<String> get _mates {
+    final raw = _reveal?['mates'];
+    if (raw is! List) return const [];
+    return raw
+        .map((e) {
+          if (e is Map && e['label'] is String) return e['label'] as String;
+          return null;
+        })
+        .whereType<String>()
+        .toList();
+  }
+
+  List<String> get _courses {
+    final menu = _reveal?['menu'];
+    if (menu is! Map) return const [];
+    final courses = menu['courses'];
+    if (courses is! List) return const [];
+    return courses.whereType<String>().toList();
+  }
+
+  String get _venueTitle {
+    final venue = _reveal?['venue'];
+    if (venue is Map && venue['name'] is String) {
+      return venue['name'] as String;
+    }
+    return widget.venueName;
+  }
+
+  String get _venueSub {
+    final venue = _reveal?['venue'];
+    if (venue is! Map) return '';
+    final area = venue['area'] as String? ?? '';
+    final city = venue['city'] as String? ?? '';
+    return [area, city].where((s) => s.trim().isNotEmpty).join(' · ');
+  }
+
+  String get _statusBadge =>
+      (_reveal?['bookingStatus'] as String?) ?? 'CONFIRMED';
+
+  void _openChat() {
+    final id = _tableId;
+    if (id == null || id.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TableChatScreen(
+          tableId: id,
+          venueName: _venueTitle,
+        ),
+      ),
+    );
   }
 
   @override
@@ -105,7 +175,7 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'OPENS IN',
+                        _remaining.inSeconds > 0 ? 'STARTS IN' : 'STARTED',
                         style: GoogleFonts.dmSans(
                           fontSize: 10,
                           letterSpacing: 1.1,
@@ -126,396 +196,261 @@ class _TableRevealScreenState extends State<TableRevealScreen> {
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Your table is ready.',
-                      style: GoogleFonts.dmSerifDisplay(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w400,
-                        color: NytoColors.cream,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Six strangers. One fixed menu. Tonight.',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 14,
-                        color: NytoColors.creamMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    Text(
-                      'VENUE',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.4,
-                        color: NytoColors.creamMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: NytoColors.surface,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: NytoColors.cream.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  'Caperberry',
-                                  style: GoogleFonts.dmSerifDisplay(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w400,
-                                    color: NytoColors.cream,
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: NytoColors.moss.withValues(alpha: 0.25),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFF7CB88A),
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'CONFIRMED',
-                                      style: GoogleFonts.dmSans(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: 0.8,
-                                        color: const Color(0xFFC8D9CE),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Lavelle Road · Central Bengaluru',
-                            style: GoogleFonts.dmSans(
-                              fontSize: 13,
-                              color: NytoColors.creamMuted,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            'Sat, 26 Jul  |  8:30 PM',
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              color: NytoColors.orange,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 28),
-                    Row(
-                      children: [
-                        Text(
-                          'FIXED MENU',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.4,
-                            color: NytoColors.creamMuted,
-                          ),
-                        ),
-                        const Spacer(),
-                        Container(
-                          width: 8,
-                          height: 8,
-                          margin: const EdgeInsets.only(right: 6),
-                          decoration: BoxDecoration(
-                            color: NytoColors.moss,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        Text(
-                          'VEG / NON-VEG',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.8,
-                            color: NytoColors.creamMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    ...List.generate(_menu.length, (i) {
-                      final item = _menu[i];
-                      final primary = i == 0;
-                      return Padding(
-                        padding: EdgeInsets.only(
-                          bottom: i == _menu.length - 1 ? 0 : 14,
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 3,
-                              height: 48,
-                              margin: const EdgeInsets.only(right: 14, top: 2),
-                              decoration: BoxDecoration(
-                                color: NytoColors.orange.withValues(
-                                  alpha: primary ? 1 : 0.4,
-                                ),
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.$1,
-                                    style: GoogleFonts.dmSans(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.1,
-                                      color: NytoColors.orange.withValues(
-                                        alpha: primary ? 1 : 0.4,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    item.$2,
-                                    style: GoogleFonts.dmSerifDisplay(
-                                      fontSize: 16,
-                                      fontStyle: FontStyle.italic,
-                                      fontWeight: FontWeight.w400,
-                                      color: NytoColors.cream,
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 28),
-                    Row(
-                      children: [
-                        Text(
-                          'YOUR TABLEMATES',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 1.4,
-                            color: NytoColors.creamMuted,
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          '${_mates.length}',
-                          style: GoogleFonts.dmSans(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: NytoColors.orange,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ...List.generate(_mates.length, (i) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: 22,
-                              child: Text(
-                                '${i + 1}',
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 13,
-                                  color: NytoColors.creamMuted,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                _mates[i],
-                                style: GoogleFonts.dmSans(
-                                  fontSize: 14,
-                                  color: NytoColors.cream,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }),
-                    const SizedBox(height: 16),
-                    Text(
-                      'CONVERSATION STARTERS',
-                      style: GoogleFonts.dmSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.4,
-                        color: NytoColors.creamMuted,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    ...List.generate(_starters.length, (i) {
-                      final primary = i == 0;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: NytoColors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: NytoColors.cta),
+                    )
+                  : _error != null
+                      ? Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Container(
-                                  width: 3,
-                                  decoration: BoxDecoration(
-                                    color: NytoColors.orange.withValues(
-                                      alpha: primary ? 1 : 0.4,
-                                    ),
-                                    borderRadius: const BorderRadius.horizontal(
-                                      left: Radius.circular(12),
-                                    ),
+                                Text(
+                                  _error!,
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.dmSans(
+                                    color: NytoColors.creamMuted,
                                   ),
                                 ),
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                      14,
-                                      14,
-                                      14,
-                                      14,
-                                    ),
-                                    child: Text(
-                                      '“${_starters[i]}”',
-                                      style: GoogleFonts.dmSerifDisplay(
-                                        fontSize: 15,
-                                        fontStyle: FontStyle.italic,
-                                        color: NytoColors.cream,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ),
+                                const SizedBox(height: 16),
+                                TextButton(
+                                  onPressed: _load,
+                                  child: const Text('Retry'),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                      );
-                    }),
-                  ],
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTapDown: (_) => setState(() => _pressed = true),
-                    onTapUp: (_) {
-                      setState(() => _pressed = false);
-                      final id = widget.tableId;
-                      if (id == null || id.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Table chat unlocks from your booking.',
-                            ),
-                            backgroundColor: NytoColors.surface,
-                          ),
-                        );
-                        return;
-                      }
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => TableChatScreen(
-                            tableId: id,
-                            venueName: widget.venueName,
-                          ),
-                        ),
-                      );
-                    },
-                    onTapCancel: () => setState(() => _pressed = false),
-                    child: AnimatedScale(
-                      scale: _pressed ? 0.98 : 1,
-                      duration: const Duration(milliseconds: 90),
-                      child: Container(
-                        width: double.infinity,
-                        height: 54,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        decoration: BoxDecoration(
-                          color: NytoColors.orange,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Row(
-                          children: [
-                            Text(
-                              'Open table chat',
-                              style: GoogleFonts.dmSans(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: NytoColors.cream,
+                        )
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _revealed
+                                    ? 'Your table is ready.'
+                                    : 'Reveal opens closer to dinner.',
+                                style: GoogleFonts.dmSerifDisplay(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w400,
+                                  color: NytoColors.cream,
+                                ),
                               ),
-                            ),
-                            const Spacer(),
-                            const Icon(
-                              Icons.arrow_forward,
-                              size: 18,
-                              color: NytoColors.cream,
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              Text(
+                                _revealed
+                                    ? 'Strangers at one fixed menu. Tonight.'
+                                    : 'Mates unlock within 24 hours of start.',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 14,
+                                  color: NytoColors.creamMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              Text(
+                                'VENUE',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.4,
+                                  color: NytoColors.creamMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  color: NytoColors.surface,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: NytoColors.cream
+                                        .withValues(alpha: 0.08),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            _venueTitle,
+                                            style: GoogleFonts.dmSerifDisplay(
+                                              fontSize: 24,
+                                              color: NytoColors.cream,
+                                            ),
+                                          ),
+                                        ),
+                                        Text(
+                                          _statusBadge,
+                                          style: GoogleFonts.dmSans(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            letterSpacing: 0.8,
+                                            color: const Color(0xFFC8D9CE),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (_venueSub.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        _venueSub,
+                                        style: GoogleFonts.dmSans(
+                                          fontSize: 13,
+                                          color: NytoColors.creamMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 28),
+                              Text(
+                                'FIXED MENU',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.4,
+                                  color: NytoColors.creamMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              if (_courses.isEmpty)
+                                Text(
+                                  (_reveal?['menu'] is Map
+                                          ? (_reveal!['menu']
+                                              as Map)['name'] as String?
+                                          : null) ??
+                                      'Menu details land with the kitchen package.',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    color: NytoColors.creamMuted,
+                                  ),
+                                )
+                              else
+                                ...List.generate(_courses.length, (i) {
+                                  final line = _courses[i];
+                                  return Padding(
+                                    padding: EdgeInsets.only(
+                                      bottom:
+                                          i == _courses.length - 1 ? 0 : 12,
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          width: 3,
+                                          height: 40,
+                                          margin: const EdgeInsets.only(
+                                            right: 14,
+                                            top: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: NytoColors.orange
+                                                .withValues(
+                                              alpha: i == 0 ? 1 : 0.4,
+                                            ),
+                                            borderRadius:
+                                                BorderRadius.circular(2),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            line,
+                                            style: GoogleFonts.dmSans(
+                                              fontSize: 14,
+                                              height: 1.35,
+                                              color: NytoColors.cream,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              const SizedBox(height: 28),
+                              Text(
+                                'TABLEMATES',
+                                style: GoogleFonts.dmSans(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 1.4,
+                                  color: NytoColors.creamMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              if (!_revealed)
+                                Text(
+                                  'Names unlock inside the 24-hour window.',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    color: NytoColors.creamMuted,
+                                  ),
+                                )
+                              else if (_mates.isEmpty)
+                                Text(
+                                  'You’re first at this table — more seats may fill.',
+                                  style: GoogleFonts.dmSans(
+                                    fontSize: 14,
+                                    color: NytoColors.creamMuted,
+                                  ),
+                                )
+                              else
+                                ..._mates.map(
+                                  (m) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: Text(
+                                      m,
+                                      style: GoogleFonts.dmSans(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                        color: NytoColors.cream,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+            ),
+            if (_tableId != null && _revealed)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+                child: GestureDetector(
+                  onTapDown: (_) => setState(() => _pressed = true),
+                  onTapUp: (_) {
+                    setState(() => _pressed = false);
+                    _openChat();
+                  },
+                  onTapCancel: () => setState(() => _pressed = false),
+                  child: AnimatedScale(
+                    scale: _pressed ? 0.98 : 1,
+                    duration: const Duration(milliseconds: 120),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: NytoColors.cta,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        'Open table chat',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.dmSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Identities stay private until you choose otherwise.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.dmSans(
-                      fontSize: 12,
-                      color: NytoColors.creamMuted,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
           ],
         ),
       ),

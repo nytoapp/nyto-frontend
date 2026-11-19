@@ -662,7 +662,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _isRazorpay ? 'Secured by Razorpay · Non-refundable' : 'Dev stub · Non-refundable',
+            _isRazorpay
+                ? 'Secured by Razorpay · Refundable until the night starts'
+                : 'Dev checkout · Refundable until the night starts',
             style: GoogleFonts.dmSans(
               fontSize: 12,
               color: NytoColors.creamMuted,

@@ -45,9 +45,7 @@ class NytoGoogleAuth {
     }
 
     try {
-      final account = await GoogleSignIn.instance.authenticate(
-        scopeHint: const ['email', 'profile'],
-      );
+      final account = await GoogleSignIn.instance.authenticate();
       final idToken = account.authentication.idToken;
       if (idToken == null || idToken.isEmpty) {
         throw const AuthFailure(
@@ -75,9 +73,11 @@ class NytoGoogleAuth {
         return AuthFailure.cancelled;
       case GoogleSignInExceptionCode.clientConfigurationError:
       case GoogleSignInExceptionCode.providerConfigurationError:
-        return const AuthFailure(
+        return AuthFailure(
           AuthFailureKind.notConfigured,
-          'Google Sign-In is not configured for this app yet.',
+          e.description?.trim().isNotEmpty == true
+              ? e.description!.trim()
+              : 'Google Sign-In is not configured for this app yet.',
         );
       case GoogleSignInExceptionCode.uiUnavailable:
         return const AuthFailure(

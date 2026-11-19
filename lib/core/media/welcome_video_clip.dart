@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 /// One welcome hero clip — path, loop window, headline + caption copy.
@@ -62,23 +61,9 @@ abstract final class WelcomeVideoClip {
   static const crossfadeDuration = Duration(milliseconds: 850);
   static const _initTimeout = Duration(milliseconds: 12000);
 
-  static Future<bool> assetExists(String path) async {
-    try {
-      await rootBundle.load(path);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Clips whose asset files exist on disk, in carousel order.
-  static Future<List<WelcomeClipConfig>> availableClips() async {
-    final out = <WelcomeClipConfig>[];
-    for (final clip in clips) {
-      if (await assetExists(clip.assetPath)) out.add(clip);
-    }
-    return out;
-  }
+  /// Bundled carousel clips. Do not read the mp4s into memory first —
+  /// that stalls the first frame for seconds before a player even starts.
+  static Future<List<WelcomeClipConfig>> availableClips() async => clips;
 
   static Future<VideoPlayerController?> _initController(String path) async {
     try {
@@ -90,6 +75,20 @@ abstract final class WelcomeVideoClip {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Play one clip on a loop. Used for the opening screen before the carousel.
+  static Future<VideoPlayerController?> warmClip(WelcomeClipConfig clip) async {
+    final controller = await _initController(clip.assetPath);
+    if (controller == null) return null;
+    try {
+      await controller.setLooping(true);
+      await controller.play();
+    } catch (_) {
+      await controller.dispose();
+      return null;
+    }
+    return controller;
   }
 
   /// Warm first clip only — full carousel loads on welcome after navigate.

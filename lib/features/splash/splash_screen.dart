@@ -2,153 +2,60 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:nyto_app/app/session.dart';
 import 'package:nyto_app/core/media/welcome_video_clip.dart';
 import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/auth/welcome_screen.dart';
 import 'package:nyto_app/features/home/home_screen.dart';
-import 'package:nyto_app/features/onboarding/onboarding_data.dart';
 import 'package:nyto_app/features/onboarding/onboarding_flow.dart';
-import 'package:nyto_app/features/onboarding/widgets/onboarding_chrome.dart';
 import 'package:video_player/video_player.dart';
 
-/// Exactly 1s full-bleed NYTO (same art as native windowBackground) → instant swap.
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+/// Signed-in open. Finished profiles go home. An unfinished signup
+/// is cleared so the app opens on the welcome screen.
+class SessionResume extends StatefulWidget {
+  const SessionResume({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  State<SessionResume> createState() => _SessionResumeState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
-  static const _bootArt = 'assets/brand/nyto_boot_splash.png';
-  static const _bootChannel = MethodChannel('nyto/boot');
-  static const _hold = Duration(milliseconds: 1000);
-
-  bool _navigated = false;
-  bool _ownsFirstClip = false;
-  bool _nativeReleased = false;
-  bool? _sessionResult;
-  VideoPlayerController? _preloadedFirst;
-  String? _preloadedAssetPath;
-  WelcomeCarouselSession? _preloadedSession;
+class _SessionResumeState extends State<SessionResume> {
+  bool _routed = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(
-      NytoSession.hasSession().then((value) {
-        _sessionResult = value;
-      }),
-    );
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: NytoColors.ground,
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
-    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      unawaited(_warmFirstClip());
-      unawaited(_holdThenNavigate());
+      unawaited(_route());
     });
   }
 
-  void _onBootArtPainted() {
-    if (_nativeReleased || !mounted) return;
-    _nativeReleased = true;
-    unawaited(_releaseNativeSplash());
-  }
-
-  Future<void> _releaseNativeSplash() async {
-    try {
-      await _bootChannel.invokeMethod<void>('dropBridge');
-    } catch (_) {}
-  }
-
-  Future<void> _warmFirstClip() async {
-    await GoogleFonts.pendingFonts([
-      GoogleFonts.dmSerifDisplay(fontWeight: FontWeight.w500),
-      GoogleFonts.dmSans(fontWeight: FontWeight.w400),
-    ]);
-    if (!mounted || _navigated) return;
-
-    final warmed = await WelcomeVideoClip.warmFirstClip();
-    if (!mounted || _navigated) {
-      if (warmed != null) {
-        await warmed.controller.dispose();
-      }
-      return;
-    }
-    if (warmed != null) {
-      _preloadedFirst = warmed.controller;
-      _preloadedAssetPath = warmed.assetPath;
-      _ownsFirstClip = true;
-      unawaited(_warmRemainingClips(warmed.controller, warmed.assetPath));
-    }
-  }
-
-  Future<void> _warmRemainingClips(
-    VideoPlayerController first,
-    String assetPath,
-  ) async {
-    final full = await WelcomeVideoClip.createCarousel(
-      preloadedFirst: first,
-      preloadedAssetPath: assetPath,
-    );
-    if (!mounted || _navigated) {
-      if (full != null) {
-        await WelcomeVideoClip.disposeSession(full, keep: first);
-      }
-      return;
-    }
-    _preloadedSession = full;
-  }
-
-  Future<void> _holdThenNavigate() async {
-    if (!mounted || _navigated) return;
-    await Future<void>.delayed(_hold);
-    if (!mounted || _navigated) return;
-
-    final hasSession = _sessionResult ?? false;
-    if (!mounted || _navigated) return;
-
-    if (!hasSession) {
-      _goWelcome();
-      return;
-    }
-
-    // Session exists: Home if onboarding done; else resume post-auth steps.
-    // Never reopen Phone/OTP — those belong only to the pre-auth flow.
+  Future<void> _route() async {
+    if (!mounted || _routed) return;
     try {
       final user = await NytoSession.currentUser();
-      if (!mounted || _navigated) return;
+      if (!mounted || _routed) return;
       if (user != null && onboardingNeedsCompletion(user)) {
-        _goPostAuth(onboardingDataFromUser(user));
+        // An unfinished signup must not reopen on the last step.
+        try {
+          await NytoSession.signOut();
+        } catch (_) {}
+        if (!mounted || _routed) return;
+        _routed = true;
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder<void>(
+            opaque: true,
+            transitionDuration: Duration.zero,
+            reverseTransitionDuration: Duration.zero,
+            pageBuilder: (_, __, ___) => const WelcomeScreen(),
+            transitionsBuilder: (_, __, ___, child) => child,
+          ),
+        );
         return;
       }
     } catch (_) {}
-    if (!mounted || _navigated) return;
-    _goHome();
-  }
-
-  void _goPostAuth(OnboardingData data) {
-    if (_navigated || !mounted) return;
-    _navigated = true;
-    _disposeUnusedPreload();
-
-    Navigator.of(context).pushReplacement(
-      onboardingRoute(PostAuthOnboardingFlow(data: data)),
-    );
-  }
-
-  void _goHome() {
-    if (_navigated || !mounted) return;
-    _navigated = true;
-    _disposeUnusedPreload();
-
+    if (!mounted || _routed) return;
+    _routed = true;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         opaque: true,
@@ -160,70 +67,96 @@ class _SplashScreenState extends State<SplashScreen> {
     );
   }
 
-  void _goWelcome() {
-    if (_navigated || !mounted) return;
-    _navigated = true;
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(backgroundColor: NytoColors.ground);
+  }
+}
 
-    final handedFirst = _preloadedFirst;
-    final handedPath = _preloadedAssetPath;
-    final handedSession = _preloadedSession;
-    _preloadedFirst = null;
-    _preloadedAssetPath = null;
-    _preloadedSession = null;
-    if (handedFirst != null) {
-      _ownsFirstClip = false;
+/// Original NYTO mark. Shown the moment the app opens, then the video.
+class NytoOpening extends StatefulWidget {
+  const NytoOpening({super.key});
+
+  @override
+  State<NytoOpening> createState() => _NytoOpeningState();
+}
+
+class _NytoOpeningState extends State<NytoOpening> {
+  static const _art = 'assets/brand/nyto_boot_splash.png';
+  static const _hold = Duration(seconds: 2);
+  Timer? _holdTimer;
+  bool _left = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_open());
+  }
+
+  Future<Duration> _alreadyOnScreen() async {
+    try {
+      final ms = await const MethodChannel('nyto/boot').invokeMethod<int>('logoShownMs');
+      if (ms == null || ms <= 0) return Duration.zero;
+      return Duration(milliseconds: ms);
+    } catch (_) {
+      return Duration.zero;
     }
+  }
 
+  Future<void> _open() async {
+    final already = await _alreadyOnScreen();
+    final started = DateTime.now();
+    final warmed = await WelcomeVideoClip.warmFirstClip();
+    if (!mounted || _left) {
+      await warmed?.controller.dispose();
+      return;
+    }
+    final remain = _hold - already - DateTime.now().difference(started);
+    if (remain <= Duration.zero) {
+      _showVideo(warmed);
+      return;
+    }
+    _holdTimer = Timer(remain, () {
+      if (!mounted || _left) return;
+      _showVideo(warmed);
+    });
+  }
+
+  void _showVideo(
+    ({VideoPlayerController controller, String assetPath})? warmed,
+  ) {
+    if (!mounted || _left) return;
+    _left = true;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         opaque: true,
         transitionDuration: Duration.zero,
         reverseTransitionDuration: Duration.zero,
         pageBuilder: (_, __, ___) => WelcomeScreen(
-          preloadedSession: handedSession,
-          preloadedFirst: handedSession == null ? handedFirst : null,
-          preloadedAssetPath: handedPath,
-          fromSplashHandoff: handedFirst != null,
+          preloadedFirst: warmed?.controller,
+          preloadedAssetPath: warmed?.assetPath,
+          fromSplashHandoff: warmed != null,
         ),
         transitionsBuilder: (_, __, ___, child) => child,
       ),
     );
   }
 
-  void _disposeUnusedPreload() {
-    if (_ownsFirstClip && _preloadedFirst != null) {
-      unawaited(_preloadedFirst!.dispose());
-      _preloadedFirst = null;
-      _ownsFirstClip = false;
-    }
-  }
-
   @override
   void dispose() {
-    _disposeUnusedPreload();
+    _left = true;
+    _holdTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: NytoColors.ground,
-      body: SizedBox.expand(
-        child: Image(
-          image: const AssetImage(_bootArt),
-          fit: BoxFit.cover,
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.high,
-          semanticLabel: 'NYTO',
-          frameBuilder: (context, child, frame, wasSyncLoaded) {
-            if (frame != null || wasSyncLoaded) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _onBootArtPainted();
-              });
-            }
-            return child;
-          },
-        ),
+    return const SizedBox.expand(
+      child: Image(
+        image: AssetImage(_art),
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.high,
       ),
     );
   }

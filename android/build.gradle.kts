@@ -16,6 +16,15 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// Third-party Android plugins crash release lint on this JDK. Skip that check.
+subprojects {
+    tasks.configureEach {
+        if (name.contains("lintVital")) {
+            enabled = false
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }

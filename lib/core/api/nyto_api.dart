@@ -53,7 +53,7 @@ class TablesApi {
     if (paymentType != null && paymentType.isNotEmpty) {
       query['paymentType'] = paymentType;
     }
-    return _api.get('/tables', query: query);
+    return _api.get('/tables', query: query, auth: true);
   }
 
   Future<List<Map<String, dynamic>>> list({

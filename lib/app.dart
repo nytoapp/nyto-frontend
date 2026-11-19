@@ -3,7 +3,9 @@ import 'package:nyto_app/core/theme/app_theme.dart';
 import 'package:nyto_app/features/splash/splash_screen.dart';
 
 class NytoApp extends StatelessWidget {
-  const NytoApp({super.key});
+  const NytoApp({super.key, required this.signedIn});
+
+  final bool signedIn;
 
   @override
   Widget build(BuildContext context) {
@@ -11,7 +13,7 @@ class NytoApp extends StatelessWidget {
       title: 'NYTO',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
-      home: const SplashScreen(),
+      home: signedIn ? const SessionResume() : const NytoOpening(),
     );
   }
 }

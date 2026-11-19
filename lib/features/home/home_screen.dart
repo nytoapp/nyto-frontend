@@ -241,7 +241,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    final showSkeleton = _tables.isEmpty;
+    if (showSkeleton && mounted) setState(() => _loading = true);
 
     try {
       final json = await tablesApi
@@ -295,13 +296,13 @@ class _HomeScreenState extends State<HomeScreen> {
     } on ApiException catch (_) {
       if (!mounted) return;
       setState(() {
-        _tables = const [];
+        if (showSkeleton) _tables = const [];
         _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _tables = const [];
+        if (showSkeleton) _tables = const [];
         _loading = false;
       });
     }
@@ -328,11 +329,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openTable(UpcomingTable table) async {
     if (!mounted) return;
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => TableDetailScreen(table: table),
       ),
     );
+    if (mounted) await _load();
   }
 
   @override
@@ -383,7 +385,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         bottomNavigationBar: _NytoBottomNav(
           index: _tab,
-          onChanged: (i) => setState(() => _tab = i),
+          onChanged: (i) {
+            final returningHome = i == 0 && _tab != 0;
+            setState(() => _tab = i);
+            if (returningHome) _load();
+          },
         ),
       ),
     );

@@ -158,6 +158,7 @@ class _BookingTypeScreenState extends State<BookingTypeScreen> {
         builder: (_) => InviteFriendsScreen(
           table: widget.table,
           bookingId: bookingId,
+          seatCount: _seats,
           seatSubtotal: sub,
           gst: gstAmt,
           total: total,

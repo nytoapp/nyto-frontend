@@ -18,6 +18,7 @@ class InviteFriendsScreen extends StatefulWidget {
     super.key,
     required this.table,
     required this.bookingId,
+    required this.seatCount,
     required this.seatSubtotal,
     required this.gst,
     required this.total,
@@ -25,6 +26,7 @@ class InviteFriendsScreen extends StatefulWidget {
 
   final UpcomingTable table;
   final String bookingId;
+  final int seatCount;
   final int seatSubtotal;
   final int gst;
   final int total;
@@ -126,7 +128,7 @@ class _InviteFriendsScreenState extends State<InviteFriendsScreen> {
           MaterialPageRoute<void>(
             builder: (_) => PaymentScreen(
               table: table,
-              seatCount: 1,
+              seatCount: widget.seatCount,
               bookingId: widget.bookingId,
               seatSubtotal: widget.seatSubtotal,
               gst: widget.gst,

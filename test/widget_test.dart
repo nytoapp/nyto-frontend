@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nyto_app/app.dart';
-import 'package:nyto_app/features/auth/welcome_screen.dart';
+import 'package:nyto_app/features/splash/splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -26,12 +26,9 @@ void main() {
   });
 
   testWidgets('NYTO opens on welcome when there is no session', (tester) async {
-    await tester.pumpWidget(const NytoApp());
+    await tester.pumpWidget(const NytoApp(signedIn: false));
 
-    // Splash holds for a beat before routing, then the transition runs.
-    await tester.pump(const Duration(milliseconds: 1100));
-    await tester.pump(const Duration(milliseconds: 700));
-
-    expect(find.byType(WelcomeScreen), findsOneWidget);
+    expect(find.byType(NytoOpening), findsOneWidget);
+    expect(find.text('Get started'), findsNothing);
   });
 }

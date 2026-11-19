@@ -88,6 +88,7 @@ flutter:
     - assets/brand/nyto_logo_primary.png
     - assets/brand/nyto_logo_wordmark.png
     - assets/brand/nyto_boot_splash.png
+    - assets/brand/welcome_opening.jpg
     - assets/brand/google_g.svg
     - assets/brand/facebook_logo.svg
     - assets/brand/apple_logo.svg

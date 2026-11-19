@@ -36,8 +36,6 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen>
     with TickerProviderStateMixin, WidgetsBindingObserver {
-  static const _bootArt = 'assets/brand/nyto_boot_splash.png';
-
   WelcomeCarouselSession? _session;
   WelcomeCarouselController? _carousel;
   bool _useVideo = false;
@@ -54,6 +52,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       duration: const Duration(milliseconds: 520),
     );
     _setSystemUi();
+    _uiReady = true;
+    _enter.value = 1;
 
     final preSession = widget.preloadedSession;
     if (preSession != null && preSession.controllers.isNotEmpty) {
@@ -71,6 +71,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         widget.preloadedFirst!,
         widget.preloadedAssetPath,
       );
+      _ownsSession = true;
       _uiReady = true;
       _enter.value = 1.0;
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -87,7 +88,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
         widget.preloadedAssetPath,
       ));
     } else {
-      _bootMedia();
+      unawaited(_bootMedia());
     }
   }
 
@@ -176,32 +177,19 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   Future<void> _bootMedia() async {
-    await _loadCarousel(
-      preloadedFirst: widget.preloadedFirst,
-      preloadedAssetPath: widget.preloadedAssetPath,
-    );
-    if (!mounted) return;
-    _revealUi();
-  }
-
-  Future<void> _loadCarousel({
-    VideoPlayerController? preloadedFirst,
-    String? preloadedAssetPath,
-  }) async {
-    final session = await WelcomeVideoClip.createCarousel(
-      preloadedFirst: preloadedFirst,
-      preloadedAssetPath: preloadedAssetPath,
-    );
-    if (session == null || !mounted) {
-      if (session != null) {
-        await _disposeSession(session, keep: preloadedFirst);
-      }
+    final warmed = await WelcomeVideoClip.warmFirstClip();
+    if (!mounted) {
+      if (warmed != null) await warmed.controller.dispose();
       return;
     }
-    _session = session;
-    _startCarousel();
+    if (warmed == null) return;
+    _primeHandoffFromSplash(warmed.controller, warmed.assetPath);
+    _ownsSession = true;
     setState(() => _useVideo = true);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    unawaited(_loadFullCarouselInBackground(
+      warmed.controller,
+      warmed.assetPath,
+    ));
   }
 
   void _startCarousel() {
@@ -281,17 +269,15 @@ class _WelcomeScreenState extends State<WelcomeScreen>
             if (carousel != null && _useVideo)
               _CarouselBackdrop(carousel: carousel)
             else
-              const ColoredBox(color: NytoColors.brandInk),
-            if (!_uiReady && !widget.fromSplashHandoff)
               const Image(
-                image: AssetImage(_bootArt),
+                image: AssetImage('assets/brand/nyto_boot_splash.png'),
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
                 filterQuality: FilterQuality.high,
               ),
-            if (_uiReady) const _CinematicScrim(),
-            if (_uiReady && carousel != null)
-              SafeArea(
+            if (carousel != null && _useVideo) const _CinematicScrim(),
+            if (carousel != null && _useVideo)
+            SafeArea(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 10, 24, 14),
                   child: Column(
@@ -312,7 +298,8 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            _SlideCopy(carousel: carousel),
+                            if (carousel != null)
+                              _SlideCopy(carousel: carousel),
                             const SizedBox(height: 28),
                             _PrimaryCta(
                               label: 'Get started',

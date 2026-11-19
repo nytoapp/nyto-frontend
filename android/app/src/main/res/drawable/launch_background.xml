@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Full-bleed NYTO boot art — matches Flutter splash / MainActivity cover. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:drawable="@color/nyto_ground" />
     <item>
